@@ -4,6 +4,7 @@
 import numpy as np
 from numpy import matlib
 from math import ceil, floor
+from scipy.interpolate import interp1d
 # import sqlite3
 
 
@@ -56,6 +57,13 @@ def __xy_calc(s, r, ref_step=8.0):
         F += h/3*(fs[0] + 2*(fs[2]+fs[4]+fs[6]) + 4*(fs[1]+fs[3]+fs[5]+fs[7]) + fs[8])
         G += h/3*(gs[0] + 2*(gs[2]+gs[4]+gs[6]) + 4*(gs[1]+gs[3]+gs[5]+gs[7]) + gs[8])
     return F, G
+
+
+# not used
+def __s_t(t,u):
+    # t - time
+    # u - (u0~u2,tg)
+    return u[0]*t + u[1]*t**2/2 + u[2]*t**3/3
 
 
 def __Jacobian(p,r=None):
@@ -138,41 +146,40 @@ def optimize(bd_con, init_val=None):
     return pp[0,0], pp[1,0], pp[2,0]
 
 
-# 考虑修改接口参数为p,r...
-def spiral_calc(fun, length,q=None,ref_delta_s=0.1):
+def spiral3_calc(p, r=None, q=None, ref_delta_s=0.1):
     # 计算路径上的点列
-    # fun: k(s)
+    # p: (p0~p3, sg)
+    # r: (a,b,c,d)
     # q0=(0,0,0)
-    # return: [s,l,x,y,theta,k]
-    N = int(np.ceil(length/ref_delta_s))
-    line = np.zeros((N,6))
-    delta_s = length / (N-1)
-    s_list = np.linspace(0,length,N)
-    line[:,0] = s_list # s
-    line[:,5] = fun(s_list) # k
-    d_theta = (line[0:N-1,5] + line[1:N,5])/2 * delta_s
-    for i in range(1,N):
-        line[i,4] = line[i-1,4] + d_theta[i-1] # theta
-    cos_t = np.cos(line[:,4])
-    sin_t = np.sin(line[:,4])
-    d_x = (cos_t[0:N-1] + cos_t[1:N])/2 * delta_s
-    d_y = (sin_t[0:N-1] + sin_t[1:N])/2 * delta_s
-    for i in range(1,N):
-        line[i,2] = line[i-1,2] + d_x[i-1] # x
-        line[i,3] = line[i-1,3] + d_y[i-1] # y
+    # return: NX5 array - [s,x,y,theta,k]
+    if r is None:
+        r = (__a(p), __b(p), __c(p), __d(p))
+    N = ceil(p[4] / ref_delta_s)
+    line = np.zeros((N+1,5))
+    delta_s = p[4] / N
+    line[:,0] = np.linspace(0, p[4] ,N+1) # s
+    line[:,4] = __k(line[:,0], r) # k
+    line[:,3] = __theta(line[:,0], r) # theta
+    cos_t = np.cos(line[:,3])
+    sin_t = np.sin(line[:,3])
+    d_x = (cos_t[0:N] + cos_t[1:N+1])/2 * delta_s
+    d_y = (sin_t[0:N] + sin_t[1:N+1])/2 * delta_s
+    for i in range(1,N+1):
+        line[i,1] = line[i-1,1] + d_x[i-1] # x
+        line[i,2] = line[i-1,2] + d_y[i-1] # y
     if q is not None:
-        sin_x = np.sin(q[2])*line[:,2]
-        cos_x = np.cos(q[2])*line[:,2]
-        sin_y = np.sin(q[2])*line[:,3]
-        cos_y = np.cos(q[2])*line[:,3]
-        line[:,2] = q[0] + cos_x - sin_y
-        line[:,3] = q[1] + sin_x + cos_y
-        line[:,4] = np.mod((line[:,4] + q[2]), 2*np.pi)
+        sin_x = np.sin(q[2])*line[:,1]
+        cos_x = np.cos(q[2])*line[:,1]
+        sin_y = np.sin(q[2])*line[:,2]
+        cos_y = np.cos(q[2])*line[:,2]
+        line[:,1] = q[0] + cos_x - sin_y
+        line[:,2] = q[1] + sin_x + cos_y
+        line[:,3] = np.mod((line[:,3] + q[2]), 2*np.pi)
     return line
 
 
 def select_init_val(cursor, bd_con):
-    # cursor: cursor of a connection to sqlites database
+    # cursor: cursor of a connection to sqlite3 database
     # bd_con: boundary conditions - (k0,x1,y1,theta1,k1)
     # return: initial value of key - (p1,p2,sg)
     i, j, k, l, m = floor(bd_con[0]*40), floor(bd_con[1]*16/49), floor(bd_con[2]*0.16), floor(bd_con[3]*16/np.pi), floor(bd_con[4]*40)
@@ -215,14 +222,45 @@ def calc_path(cursor, q0, q1):
 def calc_velocity(v0, a0, vg, sg):
     # v(t) = q0 + q1*t + q2*t**2
     # return: q0~q2, tg
-    q0, q1, q2, tg = None, None, None, None
+    u0, u1, u2, tg = None, None, None, None
     delta = (2*v0+vg)**2 + 6*a0*sg
     if delta >= 0:
-        q0 = v0
-        q1 = a0
+        u0 = v0
+        u1 = a0
         tg = 3*sg/(2*v0+vg) if np.abs(a0)<1.e-6 else (np.sqrt(delta)-2*v0-vg)/a0
-        q2 = (vg - v0 - a0*tg)/tg**2
-    return (q0,q1,q2,tg)
+        u2 = (vg - v0 - a0*tg)/tg**2
+    return (u0,u1,u2,tg)
+
+
+def calc_trajectory(u, p, r=None, q0=None):
+    # p: (p0~p3, sg)
+    # r: (a,b,c,d)
+    # u: (u0~u2, tg)
+    # q0: (x0,y0,theta0)
+    # return: array of points on trajectory - [(t,s,x,y,theta,k,dk,v,a,j)]
+    u0, u1, u2, tg = u
+    if r is None:
+        r = (__a(p), __b(p), __c(p), __d(p))
+    # p0, p1, p2, p3, sg = p
+    a, b, c, d = r
+    #
+    path = spiral3_calc(p, r, q0) # NX5 array
+    trajectory = np.zeros((path.shape[0], 10)) # NX10 array
+    trajectory[:,1:6] = path # s,x,y,theta,k
+    trajectory[-1,0] = tg
+    # time at given path length
+    t_list = np.linspace(0., tg, path.shape[0])
+    #     s_list = __s_t(t_list, u)
+    s_list = np.array([u0*t+u1*t**2/2+u2*t**3/3 for t in t_list])
+    s2t = interp1d(s_list, t_list) # time @ given path length
+    trajectory[1:-1, 0] = s2t(trajectory[1:-1, 1]) # t
+    #
+    trajectory[:,7] = np.array([u0+u1*t+u2*t**2 for t in trajectory[:,0]]) # v
+    trajectory[:,8] = np.array([u1+2*u2*t for t in trajectory[:,0]]) # a
+    trajectory[:,9] = 2*u2
+    # dk/dt
+    trajectory[:,6] = np.array([b+2*c*s+3*d*s**2 for s in trajectory[:,1]])*trajectory[:,7]
+    return trajectory
 
 
 if __name__ == '__main__':

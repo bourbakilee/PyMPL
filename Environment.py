@@ -90,13 +90,13 @@ class Vehicle():
 
 class Road():
     def __init__(self, center_line, lane_width=3.75, ref_grid_width=0.6, ref_grid_length=1.2):
-        # center_line: Nx6 array, [[s, l, x, y, theta, k],...]
+        # center_line: Nx5 array, [[s, x, y, theta, k],...]
         # lane_number = 3
         self.length = center_line[-1,0]
         self.lane_width = lane_width
         self.width = lane_width * 3.
-        self.center_line = center_line # l == 0
-        self.center_line_fun = interp1d(center_line[:,0], center_line[:,2:].T, kind='linear') # return [x,y,theta,k]
+        self.center_line = center_line
+        self.center_line_fun = interp1d(center_line[:,0], center_line[:,1:].T, kind='linear') # return [x,y,theta,k]
         self.grid_num_per_lane = 2 * ceil(ceil(lane_width / ref_grid_width) / 2) # lateral direction
         self.grid_num_lateral = self.grid_num_per_lane*3 # 横向网格数目
         self.grid_num_longitudinal = ceil(self.length/ref_grid_length) # 纵向网格数目
@@ -121,7 +121,7 @@ class Road():
     def lateral_biasing_line(self,lateral_bias):
         # lateral_bias \in (-self.width/2, self.width/2)
         # return Nx2 array (x,y): x=x0-l*sin(theta), y=y0+l*cos(theta)
-        return self.center_line[:,2:4] + lateral_bias*np.array([-np.sin(self.center_line[:,4]), np.cos(self.center_line[:,4])]).T
+        return self.center_line[:,1:3] + lateral_bias*np.array([-np.sin(self.center_line[:,3]), np.cos(self.center_line[:,3])]).T
 
 
     def longitudinal_biasing_line(self,longitudinal_bias):
@@ -153,7 +153,7 @@ class Road():
     def __xys(self,x,y,s):
         tmp = self.center_line_fun(s)
         return (x-tmp[0])*np.cos(tmp[2]) + (y-tmp[1])*np.sin(tmp[2])
-    
+
 
     def xy2sl(self, x, y):
         f = lambda s: self.__xys(x,y,s)
