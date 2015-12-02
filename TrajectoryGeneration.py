@@ -140,6 +140,7 @@ def optimize(bd_con, init_val=None):
 
 # 考虑修改接口参数为p,r...
 def spiral_calc(fun, length,q=None,ref_delta_s=0.1):
+    # 计算路径上的点列
     # fun: k(s)
     # q0=(0,0,0)
     # return: [s,l,x,y,theta,k]
@@ -204,11 +205,24 @@ def calc_path(cursor, q0, q1):
     init_val = select_init_val(cursor, bd_con)
     pp = optimize(bd_con, init_val)
     if pp is None or pp[2]<0:
-        return None
+        p, r = None, None
     else:
         p = (q0[3], pp[0], pp[1], q1[2], pp[3])
         r = (__a(p), __b(p), __c(p), __d(p))
-        return p, r
+    return p, r
+
+
+def calc_velocity(v0, a0, vg, sg):
+    # v(t) = q0 + q1*t + q2*t**2
+    # return: q0~q2, tg
+    q0, q1, q2, tg = None, None, None, None
+    delta = (2*v0+vg)**2 + 6*a0*sg
+    if delta >= 0:
+        q0 = v0
+        q1 = a0
+        tg = 3*sg/(2*v0+vg) if np.abs(a0)<1.e-6 else (np.sqrt(delta)-2*v0-vg)/a0
+        q2 = (vg - v0 - a0*tg)/tg**2
+    return (q0,q1,q2,tg)
 
 
 if __name__ == '__main__':
