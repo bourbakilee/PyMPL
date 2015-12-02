@@ -105,9 +105,9 @@ def optimize(bd_con, init_val=None):
     r = (__a(p), __b(p), __c(p), __d(p))
     pp = matlib.matrix([[init_val[0]], [init_val[1]], [init_val[2]]])
     dq = matlib.matrix([[1.],[1.],[1.]])
-    eps1, eps2 = 1.e-4, 1.e-6
+    eps1, eps2 = 1.e-6, 1.e-8
     times = 0
-    while (np.abs(dq[0,0])>eps1 or np.abs(dq[1,0])>eps1 or np.abs(dq[2,0])>eps2) and times<=100:
+    while (np.abs(dq[0,0])>eps1 or np.abs(dq[1,0])>eps1 or np.abs(dq[2,0])>eps2) and times<=500:
         times += 1
         J = __Jacobian(p, r)
         # print('J={0}'.format(J))
@@ -132,11 +132,13 @@ def optimize(bd_con, init_val=None):
         # print('p={0}'.format(p))
         r = (__a(p), __b(p), __c(p), __d(p))
         # print('r={0}'.format(r))
-    if times > 100:
+    # print('IterTimes: {0}'.format(times))
+    if times > 500:
         pp = matlib.matrix([[-1.],[-1.],[-1.]])
     return pp[0,0], pp[1,0], pp[2,0]
 
 
+# 考虑修改接口参数为p,r...
 def spiral_calc(fun, length,q=None,ref_delta_s=0.1):
     # fun: k(s)
     # q0=(0,0,0)
@@ -168,6 +170,47 @@ def spiral_calc(fun, length,q=None,ref_delta_s=0.1):
     return line
 
 
+def select_init_val(cursor, bd_con):
+    # cursor: cursor of a connection to sqlites database
+    # bd_con: boundary conditions - (k0,x1,y1,theta1,k1)
+    # return: initial value of key - (p1,p2,sg)
+    i, j, k, l, m = floor(bd_con[0]*40), floor(bd_con[1]*16/49), floor(bd_con[2]*0.16), floor(bd_con[3]*16/np.pi), floor(bd_con[4]*40)
+    key_list = [(i,j,k,l,m),\
+                (i+1,j,k,l,m),(i,j+1,k,l,m),(i,j,k+1,l,m),(i,j,k,l+1,m),(i,j,k,l,m+1),\
+                (i+1,j+1,k,l,m),(i+1,j,k+1,l,m),(i+1,j,k,l+1,m),(i+1,j,k,l,m+1),(i,j+1,k+1,l,m),(i,j+1,k,l+1,m),(i,j+1,k,l,m+1),(i,j,k+1,l+1,m),(i,j,k+1,l,m+1),(i,j,k,l+1,m+1),\
+                (i+1,j+1,k+1,l,m),(i+1,j+1,k,l+1,m),(i+1,j+1,k,l,m+1),(i+1,j,k+1,l+1,m),(i+1,j,k+1,l,m+1),(i,j+1,k+1,l+1,m),(i,j+1,k+1,l,m+1),(i+1,j,k,l+1,m+1),(i,j+1,k,l+1,m+1),(i,j,k+1,l+1,m+1),\
+                (i+1,j+1,k+1,l+1,m),(i+1,j+1,k+1,l,m+1),(i+1,j+1,k,l+1,m+1),(i+1,j,k+1,l+1,m+1),(i,j+1,k+1,l+1,m+1),\
+                (i+1,j+1,k+1,l+1,m+1)]
+    val = None
+    for key in key_list:
+        cursor.execute('select p1, p2, sg from InitialGuessTable where \
+        k0=? and x1=? and y1=? and theta1=? and k1=?', key)
+        val = cursor.fetchone()
+        if val is not None and val[2]>0:
+            break
+    return val
+
+
+def calc_path(cursor, q0, q1):
+    # cursor: cursor of connection to sqlite3 database
+    # q0, q1: initial and goal configuration - (x,y,theta,k)
+    # return: p(p0~p3,sg), r(a,b,c,d)
+    cc = np.cos(q0[2])
+    ss = np.sin(q0[2])
+    x_r = (q1[0] - q0[0])*cc + (q1[1] - q0[1])*ss
+    y_r = -(q1[0] - q0[0])*ss + (q1[1] - q0[1])*cc
+    theta_r = np.mod(q1[2]-q0[2], 2*np.pi)
+    bd_con = (q0[3], x_r, y_r, theta_r, q1[3])
+    init_val = select_init_val(cursor, bd_con)
+    pp = optimize(bd_con, init_val)
+    if pp is None or pp[2]<0:
+        return None
+    else:
+        p = (q0[3], pp[0], pp[1], q1[2], pp[3])
+        r = (__a(p), __b(p), __c(p), __d(p))
+        return p, r
+
+
 if __name__ == '__main__':
     # test
     # p0, p1, p2, p3, sg = 0.01, 0.0070893846923453458, 0.0056488100020089405, -0.01, 109.61234579137816
@@ -185,7 +228,7 @@ if __name__ == '__main__':
     # print(J**-1*(matlib.matrix([[100.-x],[40.-y],[np.pi/6-t]])))
     bd_con = (0.01, 100., 40., np.pi/6, -0.01)
     init_val = (0.01/3, -0.01/3, np.sqrt(100.**2+40.**2)+5*np.pi/6)
-    pp = optimize(bd_con, (0.,0.,1.))
+    pp = optimize(bd_con, init_val)
     print('pp={0}'.format(pp))
     p = (bd_con[0], pp[0], pp[1], bd_con[4], pp[2])
     r = (__a(p), __b(p), __c(p), __d(p))
