@@ -39,17 +39,19 @@ def road_profile(s):
 
 
 def test():
-    center_line = TG.spiral_calc(road_profile, 110., q=(0.,0.,0.))
+    p = (0.01, 0.0070893847415232263, 0.0056488099243383414, -0.01, 109.61234595301809)
+    center_line = TG.spiral3_calc(p, q=(0.,0.,0.))
     print(center_line[-1,:])
 
 
 def test_road():
-    center_line = TG.spiral_calc(road_profile, 100., q=(5.,30.,np.pi/9))
+    p = (0.01, 0.0070893847415232263, 0.0056488099243383414, -0.01, 109.61234595301809)
+    center_line = TG.spiral3_calc(p, q=(5.,30.,np.pi/9))
     road = Road(center_line)
 
     fig = plt.figure()
     ax1 = fig.add_subplot(111)
-    ax1.plot(center_line[:,2], center_line[:,3], color='red', linestyle='--', linewidth=2.)
+    ax1.plot(center_line[:,1], center_line[:,2], color='red', linestyle='--', linewidth=2.)
 
     for i in range(road.grid_num_lateral+1):
         if (i % road.grid_num_per_lane) == 0:
@@ -79,7 +81,8 @@ def test_road():
 
 def test_workspace():
     # veh = Vehicle(trajectory=np.array([[-1.,-1.,2.,30.,0.,0.,0.,0.,0.,0.]]))
-    center_line = TG.spiral_calc(road_profile, 100., q=(5.,30.,np.pi/9))
+    p = (0.01, 0.0070893847415232263, 0.0056488099243383414, -0.01, 109.61234595301809)
+    center_line = TG.spiral3_calc(p, s=100., q=(5.,30.,np.pi/9))
     road = Road(center_line=center_line)
     #
     cfg = road.ij2xy(5,-4)
@@ -117,5 +120,5 @@ def test_workspace():
 if __name__ == '__main__':
     # test_vehicle()
     # test_road()
-    # test_workspace()
+    test_workspace()
     # test()

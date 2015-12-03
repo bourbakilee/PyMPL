@@ -146,7 +146,7 @@ def optimize(bd_con, init_val=None):
     return pp[0,0], pp[1,0], pp[2,0]
 
 
-def spiral3_calc(p, r=None, q=None, ref_delta_s=0.1):
+def spiral3_calc(p, r=None, s=None, q=None, ref_delta_s=0.1):
     # 计算路径上的点列
     # p: (p0~p3, sg)
     # r: (a,b,c,d)
@@ -154,10 +154,12 @@ def spiral3_calc(p, r=None, q=None, ref_delta_s=0.1):
     # return: NX5 array - [s,x,y,theta,k]
     if r is None:
         r = (__a(p), __b(p), __c(p), __d(p))
-    N = ceil(p[4] / ref_delta_s)
+    if s is None:
+        s = p[4]
+    N = ceil(s / ref_delta_s)
     line = np.zeros((N+1,5))
-    delta_s = p[4] / N
-    line[:,0] = np.linspace(0, p[4] ,N+1) # s
+    delta_s = s / N
+    line[:,0] = np.linspace(0, s ,N+1) # s
     line[:,4] = __k(line[:,0], r) # k
     line[:,3] = __theta(line[:,0], r) # theta
     cos_t = np.cos(line[:,3])
