@@ -74,7 +74,7 @@ def __Jacobian(p,r=None):
     p0, p1, p2, p3, sg = p
     if r is None:
         r = (__a(p), __b(p), __c(p), __d(p))
-    a, b, c, d = r
+    # a, b, c, d = r
     ss = np.linspace(0., sg, 9)
     thetas = __theta(ss[1:],r)
     cos_t = np.cos(thetas)
