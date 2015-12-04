@@ -287,9 +287,13 @@ def eval_trajectory(trajectory, workspace=None, weights=np.array([10., 1., 10., 
     # cost_matrix[:,0:2] = trajectory[:,0:2] # t,s
     cost_matrix[:,0:5] = trajectory[:,5:10] # k,dk,v,a,j
     cost_matrix[:,5] = trajectory[:,5]*trajectory[:,7]**2 # lateral acc
-    if workspace is not None and workspace.road is not None:
-        cost_matrix[:,6] = abs(workspace.road.xy2sl(trajectory[2], trajectory[3])[1] - workspace.current_lane*workspace.road.lane_width)# lateral offsets
-    cost_matrix[:,7] = workspace.cost_map[[(int(x/workspace,resolution),int(y/workspace.resolution)) for (x,y) in trajectory[:,2:4]]] # env cost
+    if workspace is not None:
+        if workspace.moving_obsts is not None:
+            cost_matrix[:,7] = workspace.cost_maps[[int(t/workspace.delta_t) for t in trajectory[:,0]], [int(x/workspace.resolution) for x in trajectory[:,2]], [int(y/workspace.resolution) for y in trajectory[:,3]]] # env cost
+        else:
+            cost_matrix[:,7] = workspace.cost_map[[int(x/workspace.resolution) for x in trajectory[:,2]], [int(y/workspace.resolution) for y in trajectory[:,3]]]
+        if workspace.road is not None:
+            cost_matrix[:,6] = abs(workspace.road.xy2sl(trajectory[2], trajectory[3])[1] - workspace.current_lane*workspace.road.lane_width)# lateral offsets
     #
     cost_matrix[:,2] = np.where(cost_matrix[:,2]>v_max, np.inf, cost_matrix[:,2]) # v
     cost_matrix[:,3] = np.where(cost_matrix[:,3]>a_max, np.inf, cost_matrix[:,3]) # a
@@ -326,9 +330,10 @@ if __name__ == '__main__':
     # print('x={0}, y={1}, theta={2}'.format(x_p,y_p,theta_p))
     # print('err: dx={0}, dy={1}, dtheta={2}'.format(bd_con[1]-x_p, bd_con[2]-y_p, bd_con[3]-theta_p))
     path = spiral3_calc(p,r)
-    print(path)
+    # print(path)
     u = calc_velocity(5.,0.2,10.,p[4])
-    print(u)
+    # print(u)
     trajectory = calc_trajectory(u,p,r,path=path)
+    print(trajectory[:,0], trajectory[:,7])
     cost = eval_trajectory(trajectory)
     print(cost)

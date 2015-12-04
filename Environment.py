@@ -189,15 +189,18 @@ class Workspace():
         self.collision_filter = self.disk_filter(r=2.)
         self.cost_filter = self.disk_filter(r=5)
         #
-        self.time = 0. if self.moving_obsts else None
+        self.time = 0. if self.moving_obsts is not None else None
+        self.delta_t = 0.02
+        self.time_series = np.linspace(0.,20.,201) if self.moving_obsts is not None else None
         self.static_map = self.__static_map()
         self.env_map = self.__env_map()
         self.collision_map = self.__collision_map(flt=self.collision_filter)
         self.cost_map = self.__cost_map(flt=self.cost_filter)
+        self.cost_maps = self.__cost_maps(flt=self.cost_filter)
 
 
     def update(self, time):
-        if time is not None and time >= 0:
+        if self.moving_obsts is not None and time >= 0:
             self.time = time
             for i in range(len(self.moving_obsts)):
                 self.moving_obsts[i].update(time)
@@ -419,3 +422,11 @@ class Workspace():
             cost_map += self.lane_costs[i] * self.lane_grids[i]
         cost_map = np.where(cost_map>255., 255., cost_map)
         return cost_map
+
+
+    def __cost_maps(self,flt=self.cost_filter):
+        cost_maps = np.zeros((201,401,401))
+        for i in range(201)
+            self.update(self.time_series[i])
+            cost_maps[i]=self.cost_map
+        return cost_maps
