@@ -1,6 +1,6 @@
 # 2015.11.16, LI Yunsheng
 
-from math import floor, ceil
+from math import floor, ceil, sqrt
 import cv2
 import numpy as np
 from scipy.interpolate import interp1d
@@ -196,7 +196,7 @@ class Workspace():
         self.env_map = self.__env_map()
         self.collision_map = self.__collision_map(flt=self.collision_filter)
         self.cost_map = self.__cost_map(flt=self.cost_filter)
-        self.cost_maps = self.__cost_maps(flt=self.cost_filter)
+        self.cost_maps = self.__cost_maps()
 
 
     def update(self, time):
@@ -424,9 +424,10 @@ class Workspace():
         return cost_map
 
 
-    def __cost_maps(self,flt=self.cost_filter):
-        cost_maps = np.zeros((201,401,401))
-        for i in range(201)
-            self.update(self.time_series[i])
-            cost_maps[i]=self.cost_map
-        return cost_maps
+    def __cost_maps(self):
+        if self.time_series is not None:
+            cost_maps = np.zeros((201,401,401))
+            for i in range(201):
+                self.update(self.time_series[i])
+                cost_maps[i]=self.cost_map
+            return cost_maps
