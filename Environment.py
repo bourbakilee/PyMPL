@@ -91,11 +91,13 @@ class Vehicle():
 class Road():
     def __init__(self, center_line, lane_width=3.75, ref_grid_width=0.6, ref_grid_length=1.2):
         # center_line: Nx5 array, [[s, x, y, theta, k],...]
+        # # current_lane: {1,0,-1} - {right, middle, left}
         # lane_number = 3
         self.length = center_line[-1,0]
         self.lane_width = lane_width
         self.width = lane_width * 3.
         self.center_line = center_line
+        # self.current_lane = current_lane
         self.center_line_fun = interp1d(center_line[:,0], center_line[:,1:].T, kind='linear') # return [x,y,theta,k]
         self.grid_num_per_lane = 2 * ceil(ceil(lane_width / ref_grid_width) / 2) # lateral direction
         self.grid_num_lateral = self.grid_num_per_lane*3 # 横向网格数目
@@ -168,7 +170,8 @@ class Road():
 
 
 class Workspace():
-    def __init__(self,base=np.zeros((401,401)), resolution=0.25, vehicle=Vehicle(), road=None, lane_costs=None, static_obsts=None, moving_obsts=None):
+    def __init__(self,base=np.zeros((401,401)), resolution=0.25, vehicle=Vehicle(), road=None, current_lane=0, lane_costs=None, static_obsts=None, moving_obsts=None):
+        # current_lane: {1,0,-1} - {right, middle, left}, default: 0
         self.base = base
         self.row = base.shape[0]
         self.column = base.shape[1]
@@ -176,18 +179,21 @@ class Workspace():
         self.static_obsts = static_obsts # list of static vehicles
         self.moving_obsts = moving_obsts # list of moving vehicles
         self.road = road
+        self.current_lane = current_lane
         self.lane_grids = self.grids_of_lanes(self.road)
         self.lane_costs = lane_costs
         self.lane_map = self.__lane_map()
         self.vehicle = vehicle
         #
-        self.disk = self.disk_filter()
+        # self.disk = self.disk_filter()
+        self.collision_filter = self.disk_filter(r=2.)
+        self.cost_filter = self.disk_filter(r=5)
         #
         self.time = 0. if self.moving_obsts else None
         self.static_map = self.__static_map()
         self.env_map = self.__env_map()
-        self.collision_map = self.__collision_map()
-        self.cost_map = self.__cost_map()
+        self.collision_map = self.__collision_map(flt=self.collision_filter)
+        self.cost_map = self.__cost_map(flt=self.cost_filter)
 
 
     def update(self, time):
@@ -196,15 +202,19 @@ class Workspace():
             for i in range(len(self.moving_obsts)):
                 self.moving_obsts[i].update(time)
             self.env_map = self.__env_map()
-            self.collision_map = self.__collision_map()
-            self.cost_map = self.__cost_map()
+            self.collision_map = self.__collision_map(flt=collision_filter)
+            self.cost_map = self.__cost_map(flt=self.cost_filter)
+
+
+    def set_current_lane(self, current_lane):
+        self.current_lane = current_lane
 
 
     def set_lane_costs(self, lane_costs):
         # lane_costs: [v_right, v_center, v_left]
         self.lane_costs = lane_costs
         self.lane_map = self.__lane_map()
-        self.cost_map = self.__cost_map()
+        self.cost_map = self.__cost_map(flt=cost_filter)
 
 
     def disk_filter(self, r=None):
@@ -375,7 +385,7 @@ class Workspace():
 
     def __collision_map(self, flt=None):
         if flt is None:
-            flt = self.disk
+            flt = self.collision_filter
         eps = 1.e-6
         Env_map = self.env_map
         Dest = cv2.filter2D(Env_map, -1, flt)
@@ -399,7 +409,7 @@ class Workspace():
 
     def __cost_map(self, flt=None, scale=255.):
         if flt is None:
-            flt = self.disk
+            flt = self.cost_filter
         eps = 1.e-6
         cost_map = self.collision_map
         cost_map += cv2.filter2D(cost_map, -1, flt)

@@ -269,9 +269,11 @@ def calc_trajectory(u, p, r=None, s=None, path=None, q0=None):
     return trajectory
 
 
-def eval_trajectory(trajectory, weights=np.array([10., 1., 10., 10., 1., 0.1, 0.1, 0.1, 10.]), road=None, p_lims=(20.,-5.,1.,0.2,10.)):
+# add param - workspace
+def eval_trajectory(trajectory, workspace=None, weights=np.array([10., 1., 10., 10., 1., 0.1, 0.1, 0.1, 10., 1.]), p_lims=(20.,-5.,1.,0.2,10.)):
     # trajectory: array of points on trajectory - [(t,s,x,y,theta,k,dk,v,a,j)]
-    # weights: weights for (t, s, k, dk, v, a, j, al, l)
+    # workspace: Environment.Workspace
+    # weights: weights for (t, s, k, dk, v, a, j, al, l, env)
     # p_lims = (v_max, a_min, a_max, k_m, a_lm) 
     # return: cost
     #
@@ -281,12 +283,13 @@ def eval_trajectory(trajectory, weights=np.array([10., 1., 10., 10., 1., 0.1, 0.
     delta_s = trajectory[1,1]
     # w_t, w_s, w_k, w_dk, w_v, w_a, w_j, w_al, w_l = weights
     v_max, a_min, a_max, k_m, a_lm = p_lims
-    cost_matrix = np.zeros((trajectory.shape[0],7)) #[(k,dk,v,a,j,al,l)]
+    cost_matrix = np.zeros((trajectory.shape[0],8)) #[(k,dk,v,a,j,al,l,env)]
     # cost_matrix[:,0:2] = trajectory[:,0:2] # t,s
     cost_matrix[:,0:5] = trajectory[:,5:10] # k,dk,v,a,j
-    if road is not None:
-        cost_matrix[:,6] = road.xy2sl(trajectory[2], trajectory[3])[1] # lateral offsets
     cost_matrix[:,5] = trajectory[:,5]*trajectory[:,7]**2 # lateral acc
+    if workspace is not None and workspace.road is not None:
+        cost_matrix[:,6] = abs(workspace.road.xy2sl(trajectory[2], trajectory[3])[1] - workspace.current_lane*workspace.road.lane_width)# lateral offsets
+    cost_matrix[:,7] = workspace.cost_map[[(int(x/workspace,resolution),int(y/workspace.resolution)) for (x,y) in trajectory[:,2:4]]] # env cost
     #
     cost_matrix[:,2] = np.where(cost_matrix[:,2]>v_max, np.inf, cost_matrix[:,2]) # v
     cost_matrix[:,3] = np.where(cost_matrix[:,3]>a_max, np.inf, cost_matrix[:,3]) # a
@@ -294,7 +297,7 @@ def eval_trajectory(trajectory, weights=np.array([10., 1., 10., 10., 1., 0.1, 0.
     cost_matrix[:,0] = np.where(abs(cost_matrix[:,0])>k_m, np.inf, cost_matrix[:,0]) # k
     cost_matrix[:,5] = np.where(abs(cost_matrix[:,5])>a_lm, np.inf, cost_matrix[:,5]) # a_l
     #
-    return delta_s * sum(sum(cost_matrix*weights[2:9])) + weights[0]*trajectory[-1,0] + weights[1]*trajectory[-1,1]
+    return delta_s * sum(sum(cost_matrix*weights[2:10])) + weights[0]*trajectory[-1,0] + weights[1]*trajectory[-1,1]
 
 
 if __name__ == '__main__':
