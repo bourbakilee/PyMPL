@@ -5,6 +5,7 @@ import numpy as np
 from numpy import matlib
 from math import ceil, floor
 from scipy.interpolate import interp1d
+# import Environment as Env
 # import sqlite3
 
 
@@ -146,40 +147,6 @@ def optimize(bd_con, init_val=None):
     return pp[0,0], pp[1,0], pp[2,0]
 
 
-def spiral3_calc(p, r=None, s=None, q=None, ref_delta_s=0.1):
-    # 计算路径上的点列
-    # p: (p0~p3, sg)
-    # r: (a,b,c,d)
-    # q0=(0,0,0)
-    # return: NX5 array - [s,x,y,theta,k]
-    if r is None:
-        r = (__a(p), __b(p), __c(p), __d(p))
-    if s is None:
-        s = p[4]
-    N = ceil(s / ref_delta_s)
-    line = np.zeros((N+1,5))
-    delta_s = s / N
-    line[:,0] = np.linspace(0, s ,N+1) # s
-    line[:,4] = __k(line[:,0], r) # k
-    line[:,3] = __theta(line[:,0], r) # theta
-    cos_t = np.cos(line[:,3])
-    sin_t = np.sin(line[:,3])
-    d_x = (cos_t[0:N] + cos_t[1:N+1])/2 * delta_s
-    d_y = (sin_t[0:N] + sin_t[1:N+1])/2 * delta_s
-    for i in range(1,N+1):
-        line[i,1] = line[i-1,1] + d_x[i-1] # x
-        line[i,2] = line[i-1,2] + d_y[i-1] # y
-    if q is not None:
-        sin_x = np.sin(q[2])*line[:,1]
-        cos_x = np.cos(q[2])*line[:,1]
-        sin_y = np.sin(q[2])*line[:,2]
-        cos_y = np.cos(q[2])*line[:,2]
-        line[:,1] = q[0] + cos_x - sin_y
-        line[:,2] = q[1] + sin_x + cos_y
-        line[:,3] = np.mod((line[:,3] + q[2]), 2*np.pi)
-    return line
-
-
 def select_init_val(cursor, bd_con):
     # cursor: cursor of a connection to sqlite3 database
     # bd_con: boundary conditions - (k0,x1,y1,theta1,k1)
@@ -234,10 +201,46 @@ def calc_velocity(v0, a0, vg, sg):
     return (u0,u1,u2,tg)
 
 
-def calc_trajectory(u, p, r=None, q0=None):
+def spiral3_calc(p, r=None, s=None, q=None, ref_delta_s=0.1):
+    # 计算路径上的点列
     # p: (p0~p3, sg)
     # r: (a,b,c,d)
+    # q0=(0,0,0)
+    # return: NX5 array - [s,x,y,theta,k]
+    if r is None:
+        r = (__a(p), __b(p), __c(p), __d(p))
+    if s is None:
+        s = p[4]
+    N = ceil(s / ref_delta_s)
+    line = np.zeros((N+1,5))
+    delta_s = s / N
+    line[:,0] = np.linspace(0, s ,N+1) # s
+    line[:,4] = __k(line[:,0], r) # k
+    line[:,3] = __theta(line[:,0], r) # theta
+    cos_t = np.cos(line[:,3])
+    sin_t = np.sin(line[:,3])
+    d_x = (cos_t[0:N] + cos_t[1:N+1])/2 * delta_s
+    d_y = (sin_t[0:N] + sin_t[1:N+1])/2 * delta_s
+    for i in range(1,N+1):
+        line[i,1] = line[i-1,1] + d_x[i-1] # x
+        line[i,2] = line[i-1,2] + d_y[i-1] # y
+    if q is not None:
+        sin_x = np.sin(q[2])*line[:,1]
+        cos_x = np.cos(q[2])*line[:,1]
+        sin_y = np.sin(q[2])*line[:,2]
+        cos_y = np.cos(q[2])*line[:,2]
+        line[:,1] = q[0] + cos_x - sin_y
+        line[:,2] = q[1] + sin_x + cos_y
+        line[:,3] = np.mod((line[:,3] + q[2]), 2*np.pi)
+    return line
+
+
+def calc_trajectory(u, p, r=None, s=None, path=None, q0=None):
     # u: (u0~u2, tg)
+    # p: (p0~p3, sg)
+    # r: (a,b,c,d)
+    # s: path length
+    # path: [(s,x,y,theta,k)]
     # q0: (x0,y0,theta0)
     # return: array of points on trajectory - [(t,s,x,y,theta,k,dk,v,a,j)]
     u0, u1, u2, tg = u
@@ -246,7 +249,8 @@ def calc_trajectory(u, p, r=None, q0=None):
     # p0, p1, p2, p3, sg = p
     a, b, c, d = r
     #
-    path = spiral3_calc(p, r, q0) # NX5 array
+    if path is None:
+        path = spiral3_calc(p, r, s, q0) # NX5 array
     trajectory = np.zeros((path.shape[0], 10)) # NX10 array
     trajectory[:,1:6] = path # s,x,y,theta,k
     trajectory[-1,0] = tg
@@ -254,15 +258,43 @@ def calc_trajectory(u, p, r=None, q0=None):
     t_list = np.linspace(0., tg, path.shape[0])
     #     s_list = __s_t(t_list, u)
     s_list = np.array([u0*t+u1*t**2/2+u2*t**3/3 for t in t_list])
-    s2t = interp1d(s_list, t_list) # time @ given path length
+    s2t = interp1d(s_list, t_list, kind='cubic') # time @ given path length
     trajectory[1:-1, 0] = s2t(trajectory[1:-1, 1]) # t
     #
     trajectory[:,7] = np.array([u0+u1*t+u2*t**2 for t in trajectory[:,0]]) # v
     trajectory[:,8] = np.array([u1+2*u2*t for t in trajectory[:,0]]) # a
     trajectory[:,9] = 2*u2
     # dk/dt
-    trajectory[:,6] = np.array([b+2*c*s+3*d*s**2 for s in trajectory[:,1]])*trajectory[:,7]
+    trajectory[:,6] = np.array([b+2*c*s+3*d*ss**2 for ss in trajectory[:,1]])*trajectory[:,7]
     return trajectory
+
+
+def eval_trajectory(trajectory, weights=np.array([10., 1., 10., 10., 1., 0.1, 0.1, 0.1, 10.]), road=None, p_lims=(20.,-5.,1.,0.2,10.)):
+    # trajectory: array of points on trajectory - [(t,s,x,y,theta,k,dk,v,a,j)]
+    # weights: weights for (t, s, k, dk, v, a, j, al, l)
+    # p_lims = (v_max, a_min, a_max, k_m, a_lm) 
+    # return: cost
+    #
+    # if road is not None:
+    #     l_list = road.xy2sl(trajectory[2], trajectory[3])[1]
+    # al_list = trajectory[:,5]*trajectory[:,7]**2
+    delta_s = trajectory[1,1]
+    # w_t, w_s, w_k, w_dk, w_v, w_a, w_j, w_al, w_l = weights
+    v_max, a_min, a_max, k_m, a_lm = p_lims
+    cost_matrix = np.zeros((trajectory.shape[0],9))
+    cost_matrix[:,0:2] = trajectory[:,0:2] # t,s
+    cost_matrix[:,2:7] = trajectory[:,5:10] # k,dk,v,a,j
+    if road is not None:
+        cost_matrix[:,7] = road.xy2sl(trajectory[2], trajectory[3])[1] # lateral offsets
+    cost_matrix[:,8] = trajectory[:,5]*trajectory[:,7]**2 # lateral acc
+    #
+    cost_matrix[:,4] = np.where(cost_matrix[:,4]>v_max, np.inf, cost_matrix[:,4]) # v
+    cost_matrix[:,5] = np.where(cost_matrix[:,5]>a_max, np.inf, cost_matrix[:,5]) # a
+    cost_matrix[:,5] = np.where(cost_matrix[:,5]<a_min, np.inf, cost_matrix[:,5]) # a
+    cost_matrix[:,2] = np.where(abs(cost_matrix[:,2])>k_m, np.inf, cost_matrix[:,2]) # k
+    cost_matrix[:,8] = np.where(abs(cost_matrix[:,8])>a_lm, np.inf, cost_matrix[:,8]) # a_l
+    #
+    return delta_s * sum(sum(cost_matrix*weights))
 
 
 if __name__ == '__main__':

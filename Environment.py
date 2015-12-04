@@ -1,9 +1,9 @@
 # 2015.11.16, LI Yunsheng
 
-from math import *
+from math import floor, ceil
 import cv2
 import numpy as np
-from scipy.interpolate import interp1d, interp2d
+from scipy.interpolate import interp1d
 from scipy.optimize import fsolve
 
 class Vehicle():
