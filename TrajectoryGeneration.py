@@ -114,9 +114,9 @@ def optimize(bd_con, init_val=None):
     r = (__a(p), __b(p), __c(p), __d(p))
     pp = matlib.matrix([[init_val[0]], [init_val[1]], [init_val[2]]])
     dq = matlib.matrix([[1.],[1.],[1.]])
-    eps1, eps2 = 1.e-6, 1.e-8
+    eps1, eps2 = 1.e-4, 1.e-6
     times = 0
-    while (np.abs(dq[0,0])>eps1 or np.abs(dq[1,0])>eps1 or np.abs(dq[2,0])>eps2) and times<=500:
+    while (np.abs(dq[0,0])>eps1 or np.abs(dq[1,0])>eps1 or np.abs(dq[2,0])>eps2) and times<=100:
         times += 1
         J = __Jacobian(p, r)
         # print('J={0}'.format(J))
@@ -124,25 +124,25 @@ def optimize(bd_con, init_val=None):
         x_p, y_p = __xy_calc(p[4], r)
         dq = q_g -  matlib.matrix([[x_p],[y_p],[theta_p]])
         pp += J**-1*dq
-        # 检查参数边界条件
-        if pp[0,0] > 0.2:
-            pp[0,0] = 0.2
-        elif pp[0,0] < -0.2:
-            pp[0,0] = -0.2
-        if pp[1,0] > 0.2:
-            pp[1,0] = 0.2
-        elif pp[1,0] < -0.2:
-            pp[1,0] = -0.2
-        if pp[2,0] < 1.:
-            pp[2,0] = 1.
-        elif pp[2,0] > 400.:
-            pp[2,0] = 400.
+        # 检查参数边界条件，构建数据库时使用，实际计算时不必判断，迭代一定次数后若不满足精度要求即可认为求解失败
+        # if pp[0,0] > 0.2:
+        #     pp[0,0] = 0.2
+        # elif pp[0,0] < -0.2:
+        #     pp[0,0] = -0.2
+        # if pp[1,0] > 0.2:
+        #     pp[1,0] = 0.2
+        # elif pp[1,0] < -0.2:
+        #     pp[1,0] = -0.2
+        # if pp[2,0] < 1.:
+        #     pp[2,0] = 1.
+        # elif pp[2,0] > 1000.:
+        #     pp[2,0] = 1000.
         p = (bd_con[0], pp[0,0], pp[1,0], bd_con[4], pp[2,0])
         # print('p={0}'.format(p))
         r = (__a(p), __b(p), __c(p), __d(p))
         # print('r={0}'.format(r))
     # print('IterTimes: {0}'.format(times))
-    if times > 500:
+    if times > 100:
         pp = matlib.matrix([[-1.],[-1.],[-1.]])
     return pp[0,0], pp[1,0], pp[2,0]
 
@@ -178,8 +178,8 @@ def calc_path(cursor, q0, q1):
     y_r = -(q1[0] - q0[0])*ss + (q1[1] - q0[1])*cc
     theta_r = np.mod(q1[2]-q0[2], 2*np.pi)
     bd_con = (q0[3], x_r, y_r, theta_r, q1[3])
-    init_val = select_init_val(cursor, bd_con)
-    pp = optimize(bd_con, init_val)
+    init_val = select_init_val(cursor, bd_con) #
+    pp = optimize(bd_con, init_val) #
     if pp is None or pp[2]<0:
         p, r = None, None
     else:
@@ -258,14 +258,14 @@ def calc_trajectory(u, p, r=None, s=None, path=None, q0=None):
     t_list = np.linspace(0., tg, path.shape[0])
     #     s_list = __s_t(t_list, u)
     s_list = np.array([u0*t+u1*t**2/2+u2*t**3/3 for t in t_list])
-    s2t = interp1d(s_list, t_list, kind='cubic') # time @ given path length
+    s2t = interp1d(s_list, t_list) # time @ given path length
     trajectory[1:-1, 0] = s2t(trajectory[1:-1, 1]) # t
     #
     trajectory[:,7] = np.array([u0+u1*t+u2*t**2 for t in trajectory[:,0]]) # v
     trajectory[:,8] = np.array([u1+2*u2*t for t in trajectory[:,0]]) # a
     trajectory[:,9] = 2*u2
     # dk/dt
-    trajectory[:,6] = np.array([b+2*c*s+3*d*ss**2 for ss in trajectory[:,1]])*trajectory[:,7]
+    trajectory[:,6] = np.array([b+2*c*ss+3*d*ss**2 for ss in trajectory[:,1]])*trajectory[:,7]
     return trajectory
 
 
@@ -281,20 +281,20 @@ def eval_trajectory(trajectory, weights=np.array([10., 1., 10., 10., 1., 0.1, 0.
     delta_s = trajectory[1,1]
     # w_t, w_s, w_k, w_dk, w_v, w_a, w_j, w_al, w_l = weights
     v_max, a_min, a_max, k_m, a_lm = p_lims
-    cost_matrix = np.zeros((trajectory.shape[0],9))
-    cost_matrix[:,0:2] = trajectory[:,0:2] # t,s
-    cost_matrix[:,2:7] = trajectory[:,5:10] # k,dk,v,a,j
+    cost_matrix = np.zeros((trajectory.shape[0],7)) #[(k,dk,v,a,j,al,l)]
+    # cost_matrix[:,0:2] = trajectory[:,0:2] # t,s
+    cost_matrix[:,0:5] = trajectory[:,5:10] # k,dk,v,a,j
     if road is not None:
-        cost_matrix[:,7] = road.xy2sl(trajectory[2], trajectory[3])[1] # lateral offsets
-    cost_matrix[:,8] = trajectory[:,5]*trajectory[:,7]**2 # lateral acc
+        cost_matrix[:,6] = road.xy2sl(trajectory[2], trajectory[3])[1] # lateral offsets
+    cost_matrix[:,5] = trajectory[:,5]*trajectory[:,7]**2 # lateral acc
     #
-    cost_matrix[:,4] = np.where(cost_matrix[:,4]>v_max, np.inf, cost_matrix[:,4]) # v
-    cost_matrix[:,5] = np.where(cost_matrix[:,5]>a_max, np.inf, cost_matrix[:,5]) # a
-    cost_matrix[:,5] = np.where(cost_matrix[:,5]<a_min, np.inf, cost_matrix[:,5]) # a
-    cost_matrix[:,2] = np.where(abs(cost_matrix[:,2])>k_m, np.inf, cost_matrix[:,2]) # k
-    cost_matrix[:,8] = np.where(abs(cost_matrix[:,8])>a_lm, np.inf, cost_matrix[:,8]) # a_l
+    cost_matrix[:,2] = np.where(cost_matrix[:,2]>v_max, np.inf, cost_matrix[:,2]) # v
+    cost_matrix[:,3] = np.where(cost_matrix[:,3]>a_max, np.inf, cost_matrix[:,3]) # a
+    cost_matrix[:,3] = np.where(cost_matrix[:,3]<a_min, np.inf, cost_matrix[:,3]) # a
+    cost_matrix[:,0] = np.where(abs(cost_matrix[:,0])>k_m, np.inf, cost_matrix[:,0]) # k
+    cost_matrix[:,5] = np.where(abs(cost_matrix[:,5])>a_lm, np.inf, cost_matrix[:,5]) # a_l
     #
-    return delta_s * sum(sum(cost_matrix*weights))
+    return delta_s * sum(sum(cost_matrix*weights[2:9])) + weights[0]*trajectory[-1,0] + weights[1]*trajectory[-1,1]
 
 
 if __name__ == '__main__':
@@ -315,10 +315,17 @@ if __name__ == '__main__':
     bd_con = (0.01, 100., 40., np.pi/6, -0.01)
     init_val = (0.01/3, -0.01/3, np.sqrt(100.**2+40.**2)+5*np.pi/6)
     pp = optimize(bd_con, init_val)
-    print('pp={0}'.format(pp))
+    # print('pp={0}'.format(pp))
     p = (bd_con[0], pp[0], pp[1], bd_con[4], pp[2])
     r = (__a(p), __b(p), __c(p), __d(p))
-    x_p, y_p = __xy_calc(p[4], r)
-    theta_p = __theta(p[4], r)
-    print('x={0}, y={1}, theta={2}'.format(x_p,y_p,theta_p))
-    print('err: dx={0}, dy={1}, dtheta={2}'.format(bd_con[1]-x_p, bd_con[2]-y_p, bd_con[3]-theta_p))
+    # x_p, y_p = __xy_calc(p[4], r)
+    # theta_p = __theta(p[4], r)
+    # print('x={0}, y={1}, theta={2}'.format(x_p,y_p,theta_p))
+    # print('err: dx={0}, dy={1}, dtheta={2}'.format(bd_con[1]-x_p, bd_con[2]-y_p, bd_con[3]-theta_p))
+    path = spiral3_calc(p,r)
+    print(path)
+    u = calc_velocity(5.,0.2,10.,p[4])
+    print(u)
+    trajectory = calc_trajectory(u,p,r,path=path)
+    cost = eval_trajectory(trajectory)
+    print(cost)
