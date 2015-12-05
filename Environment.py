@@ -89,7 +89,7 @@ class Vehicle():
 
 
 class Road():
-    def __init__(self, center_line, lane_width=3.75, ref_grid_width=0.6, ref_grid_length=1.2):
+    def __init__(self, center_line, lane_width=3.75, ref_grid_width=0.5, ref_grid_length=1.5):
         # center_line: Nx5 array, [[s, x, y, theta, k],...]
         # # current_lane: {1,0,-1} - {right, middle, left}
         # lane_number = 3
@@ -190,7 +190,7 @@ class Workspace():
         self.cost_filter = self.disk_filter(r=5)
         #
         self.time = 0. if self.moving_obsts is not None else None
-        self.delta_t = 0.02
+        self.delta_t = 0.1
         self.time_series = np.linspace(0.,20.,201) if self.moving_obsts is not None else None
         self.static_map = self.__static_map()
         self.env_map = self.__env_map()
@@ -205,7 +205,7 @@ class Workspace():
             for i in range(len(self.moving_obsts)):
                 self.moving_obsts[i].update(time)
             self.env_map = self.__env_map()
-            self.collision_map = self.__collision_map(flt=collision_filter)
+            self.collision_map = self.__collision_map(flt=self.collision_filter)
             self.cost_map = self.__cost_map(flt=self.cost_filter)
 
 

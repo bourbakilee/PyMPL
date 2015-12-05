@@ -176,7 +176,9 @@ def calc_path(cursor, q0, q1):
     ss = np.sin(q0[2])
     x_r = (q1[0] - q0[0])*cc + (q1[1] - q0[1])*ss
     y_r = -(q1[0] - q0[0])*ss + (q1[1] - q0[1])*cc
-    theta_r = np.mod(q1[2]-q0[2], 2*np.pi)
+    theta_r = np.mod(q1[2]-q0[2], 2*np.pi) # InitialGuessTable中角度取值范围是[-pi/2, p1/2]
+    if theta_r > np.pi:
+        theta_r -= 2*np.pi
     bd_con = (q0[3], x_r, y_r, theta_r, q1[3])
     init_val = select_init_val(cursor, bd_con) #
     pp = optimize(bd_con, init_val) #
