@@ -143,8 +143,10 @@ def optimize(bd_con, init_val=None):
         # print('r={0}'.format(r))
     # print('IterTimes: {0}'.format(times))
     if times > 100:
-        pp = matlib.matrix([[-1.],[-1.],[-1.]])
-    return pp[0,0], pp[1,0], pp[2,0]
+        # pp = matlib.matrix([[-1.],[-1.],[-1.]])
+        return None
+    else:
+        return pp[0,0], pp[1,0], pp[2,0]
 
 
 def select_init_val(cursor, bd_con):

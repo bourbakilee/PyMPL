@@ -114,6 +114,7 @@ def test_workspace():
 
 
     ax1.imshow(ws.lane_map,cmap=plt.cm.Greens, origin="lower",extent=(0.,100.125,0.,100.125))
+    plt.savefig('img/road_cost.png', dpi=600)
     plt.show()
 
 
@@ -128,9 +129,30 @@ def test_traj():
     conn.close()
 
 
+def test_database():
+    conn = sqlite3.connect('InitialGuessTable.db')
+    cursor = conn.cursor()
+    k0,k1=0.,0.
+    cursor.execute('select p1,p2,sg from InitialGuessTable where k0=? and k1=? and y1>=0 and theta1>=0',(int(k0*40),int(k1*40)))
+    pps = cursor.fetchall()
+    t=0
+    for pp in pps:
+        if pp[2]>0:
+            t+=1
+            path = TG.spiral3_calc(p=(k0,pp[0],pp[1],k1,pp[2]))
+            plt.plot(path[:,1],path[:,2])
+    print(t)
+    plt.title('k0 = {0}, k1 = {1}'.format(k0,k1))
+    plt.axis('equal')
+    plt.savefig('img/initialguesstable(k0={0}k1={1}).png'.format(k0,k1),dpi=600)
+    plt.show()
+    cursor.close()
+    conn.close()
+
+
 if __name__ == '__main__':
     # test_vehicle()
     # test_road()
-    # test_workspace()
+    test_workspace()
     # test()
-    test_traj()
+    # test_traj()
