@@ -125,18 +125,18 @@ def optimize(bd_con, init_val=None):
         dq = q_g -  matlib.matrix([[x_p],[y_p],[theta_p]])
         pp += J**-1*dq
         # 检查参数边界条件，构建数据库时使用，实际计算时不必判断，迭代一定次数后若不满足精度要求即可认为求解失败
-        # if pp[0,0] > 0.2:
-        #     pp[0,0] = 0.2
-        # elif pp[0,0] < -0.2:
-        #     pp[0,0] = -0.2
-        # if pp[1,0] > 0.2:
-        #     pp[1,0] = 0.2
-        # elif pp[1,0] < -0.2:
-        #     pp[1,0] = -0.2
-        # if pp[2,0] < 1.:
-        #     pp[2,0] = 1.
-        # elif pp[2,0] > 1000.:
-        #     pp[2,0] = 1000.
+        if pp[0,0] > 0.2:
+            pp[0,0] = 0.2
+        elif pp[0,0] < -0.2:
+            pp[0,0] = -0.2
+        if pp[1,0] > 0.2:
+            pp[1,0] = 0.2
+        elif pp[1,0] < -0.2:
+            pp[1,0] = -0.2
+        if pp[2,0] < 1.:
+            pp[2,0] = 1.
+        elif pp[2,0] > 1000.:
+            pp[2,0] = 1000.
         p = (bd_con[0], pp[0,0], pp[1,0], bd_con[4], pp[2,0])
         # print('p={0}'.format(p))
         r = (__a(p), __b(p), __c(p), __d(p))
@@ -181,11 +181,12 @@ def calc_path(cursor, q0, q1):
         theta_r -= 2*np.pi
     bd_con = (q0[3], x_r, y_r, theta_r, q1[3])
     init_val = select_init_val(cursor, bd_con) #
+    print(init_val)
     pp = optimize(bd_con, init_val) #
     if pp is None or pp[2]<0:
         p, r = None, None
     else:
-        p = (q0[3], pp[0], pp[1], q1[2], pp[3])
+        p = (q0[3], pp[0], pp[1], q1[2], pp[2])
         r = (__a(p), __b(p), __c(p), __d(p))
     return p, r
 
@@ -203,7 +204,7 @@ def calc_velocity(v0, a0, vg, sg):
     return (u0,u1,u2,tg)
 
 
-def spiral3_calc(p, r=None, s=None, q=None, ref_delta_s=0.1):
+def spiral3_calc(p, r=None, s=None, q=(0.,0.,0.), ref_delta_s=0.1):
     # 计算路径上的点列
     # p: (p0~p3, sg)
     # r: (a,b,c,d)
@@ -218,22 +219,23 @@ def spiral3_calc(p, r=None, s=None, q=None, ref_delta_s=0.1):
     delta_s = s / N
     line[:,0] = np.linspace(0, s ,N+1) # s
     line[:,4] = __k(line[:,0], r) # k
-    line[:,3] = __theta(line[:,0], r) # theta
+    line[:,3] = np.mod(q[2] + __theta(line[:,0], r), 2*np.pi) # theta
     cos_t = np.cos(line[:,3])
     sin_t = np.sin(line[:,3])
     d_x = (cos_t[0:N] + cos_t[1:N+1])/2 * delta_s
     d_y = (sin_t[0:N] + sin_t[1:N+1])/2 * delta_s
+    line[0,1], line[0,2] = q[0], q[1]
     for i in range(1,N+1):
         line[i,1] = line[i-1,1] + d_x[i-1] # x
         line[i,2] = line[i-1,2] + d_y[i-1] # y
-    if q is not None:
-        sin_x = np.sin(q[2])*line[:,1]
-        cos_x = np.cos(q[2])*line[:,1]
-        sin_y = np.sin(q[2])*line[:,2]
-        cos_y = np.cos(q[2])*line[:,2]
-        line[:,1] = q[0] + cos_x - sin_y
-        line[:,2] = q[1] + sin_x + cos_y
-        line[:,3] = np.mod((line[:,3] + q[2]), 2*np.pi)
+    # if q is not None:
+    #     sin_x = np.sin(q[2])*line[:,1]
+    #     cos_x = np.cos(q[2])*line[:,1]
+    #     sin_y = np.sin(q[2])*line[:,2]
+    #     cos_y = np.cos(q[2])*line[:,2]
+    #     line[:,1] = q[0] + cos_x - sin_y
+    #     line[:,2] = q[1] + sin_x + cos_y
+    #     line[:,3] = np.mod((line[:,3] + q[2]), 2*np.pi)
     return line
 
 
@@ -289,6 +291,7 @@ def eval_trajectory(trajectory, workspace=None, weights=np.array([10., 1., 10., 
     # cost_matrix[:,0:2] = trajectory[:,0:2] # t,s
     cost_matrix[:,0:5] = trajectory[:,5:10] # k,dk,v,a,j
     cost_matrix[:,5] = trajectory[:,5]*trajectory[:,7]**2 # lateral acc
+    # workspace cost 需要根据覆盖车辆的三个圆盘中心坐标来查询
     if workspace is not None:
         if workspace.moving_obsts is not None:
             cost_matrix[:,7] = workspace.cost_maps[[int(t/workspace.delta_t) for t in trajectory[:,0]], [int(x/workspace.resolution) for x in trajectory[:,2]], [int(y/workspace.resolution) for y in trajectory[:,3]]] # env cost

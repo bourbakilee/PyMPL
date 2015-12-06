@@ -5,6 +5,9 @@ __pycache__/
 # ipython notebook checkpoints
 .ipynb_checkpoints/
 
+# sqlite3 database
+*.db
+
 # C extensions
 *.so
 

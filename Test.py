@@ -3,6 +3,7 @@ import TrajectoryGeneration as TG
 import matplotlib.pyplot as plt 
 from matplotlib.path import Path
 import matplotlib.patches as patches
+import sqlite3
 
 def test_vehicle():
     veh = Vehicle()
@@ -116,9 +117,20 @@ def test_workspace():
     plt.show()
 
 
+def test_traj():
+    conn = sqlite3.connect('InitialGuessTable.db')
+    cursor = conn.cursor()
+    q0 = (100.,100.,0., 0.02)
+    q1 = (125.,130.,np.pi/6,-0.02)
+    p,r = TG.calc_path(cursor,q0,q1)
+    print('p={0},r={1}'.format(p,r))
+    cursor.close()
+    conn.close()
+
 
 if __name__ == '__main__':
     # test_vehicle()
     # test_road()
-    test_workspace()
+    # test_workspace()
     # test()
+    test_traj()
