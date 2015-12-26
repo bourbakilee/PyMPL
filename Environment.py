@@ -7,7 +7,7 @@ from scipy.interpolate import interp1d
 from scipy.optimize import fsolve
 
 class Vehicle():
-    def __init__(self, length=4., width=1.6, wheelbase=2.4, trajectory=np.array([[-1.,-1.,50.125,50.125,0.,0.,0.,0.,0.,0.]])):
+    def __init__(self, length=4., width=1.6, wheelbase=2.4, trajectory=np.array([[-1.,-1.,49.9,49.9,0.,0.,0.,0.,0.,0.]])):
         # trajectory: N X 10 array - [ [t, s, x, y, theta, k, dk, v, a, j] ]
         # state: 1 X 6 vector - [t, x, y, theta, k, v]
         self.trajectory = trajectory
@@ -170,8 +170,8 @@ class Road():
 
 
 class Workspace():
-    def __init__(self,base=np.zeros((401,401)), resolution=0.25, vehicle=Vehicle(), road=None, current_lane=0, lane_costs=None, static_obsts=None, moving_obsts=None):
-        # current_lane: {1,0,-1} - {right, middle, left}, default: 0
+    def __init__(self,base=np.zeros((500,500)), resolution=0.2, vehicle=Vehicle(), road=None, current_lane=0, target_lane=0, lane_costs=None, static_obsts=None, moving_obsts=None):
+        # current_lane: {0,1,2} - {right, middle, left}, default: 0
         self.base = base
         self.row = base.shape[0]
         self.column = base.shape[1]
@@ -180,18 +180,19 @@ class Workspace():
         self.moving_obsts = moving_obsts # list of moving vehicles
         self.road = road
         self.current_lane = current_lane
+        self.target_lane = target_lane
         self.lane_grids = self.grids_of_lanes(self.road)
         self.lane_costs = lane_costs
         self.lane_map = self.__lane_map()
         self.vehicle = vehicle
         #
         # self.disk = self.disk_filter()
-        self.collision_filter = self.disk_filter(r=2.)
-        self.cost_filter = self.disk_filter(r=5)
+        self.collision_filter = self.disk_filter(r=vehicle.covering_disk_radius())
+        self.cost_filter = self.disk_filter(r=vehicle.covering_disk_radius())
         #
         self.time = 0. if self.moving_obsts is not None else None
-        self.delta_t = 0.1
-        self.time_series = np.linspace(0.,20.,201) if self.moving_obsts is not None else None
+        self.delta_t = 0.05
+        self.time_series = np.linspace(0.,10.,201) if self.moving_obsts is not None else None
         self.static_map = self.__static_map()
         self.env_map = self.__env_map()
         self.collision_map = self.__collision_map(flt=self.collision_filter)
@@ -213,6 +214,10 @@ class Workspace():
         self.current_lane = current_lane
 
 
+    def set_target_lane(self, target_lane):
+        self.target_lane = target_lane
+
+
     def set_lane_costs(self, lane_costs):
         # lane_costs: [v_right, v_center, v_left]
         self.lane_costs = lane_costs
@@ -221,28 +226,28 @@ class Workspace():
 
 
     def disk_filter(self, r=None):
-        # r <= 10m, O(10.125, 10.125)
+        # r <= 10m, O(10.1, 10.1)
         if r is None:
             r = self.vehicle.covering_disk_radius()
-        R = np.zeros((81,81))
+        R = np.zeros((101,101))
         k0 = ceil(r/self.resolution - 0.5)
         # N = 2 * k0 + 1 # 滤波器是NxN方阵，N为奇数
         # 中间一行
-        for j in range(40-k0, 41+k0):
-            R[40,j] = 1.
+        for j in range(50-k0, 51+k0):
+            R[50,j] = 1.
         #向上\下
         for i in range(0, k0):
             rr = sqrt( r**2 - ((i+0.5)*self.resolution)**2 )
             k = ceil(rr/self.resolution - 0.5)
-            for j in range(40-k, 41+k):
-                R[41+i, j] = 1.
-                R[39-i, j] = 1.
-        F = R[(40-k0):(41+k0), (40-k0):(41+k0)]
+            for j in range(50-k, 51+k):
+                R[51+i, j] = 1.
+                R[49-i, j] = 1.
+        F = R[(50-k0):(51+k0), (50-k0):(51+k0)]
         return F
 
 
     def vehicle_filter(self,theta=0.):
-        veh = Vehicle(trajectory=np.array([[-1.,-1.,50.125,50.125,theta,0.,0.,0.,0.,0.]]))
+        veh = Vehicle(trajectory=np.array([[-1.,-1.,49.9,49.9,theta,0.,0.,0.,0.,0.]]))
         #R = np.zeros((81,81))
         r = sqrt(veh.width**2 + (veh.length + veh.wheelbase)**2) / 2
         k0 = ceil(r/self.resolution - 0.5)
@@ -263,7 +268,7 @@ class Workspace():
         #             grids = self.grids_occupied_by_line(f,veh.vertex[j,0], veh.vertex[i,0])
         #     grids_list.append(grids)
         F = self.grids_occupied_by_polygon(veh.vertex)
-        return F[(200-k0):(201+k0),(200-k0):(201+k0)]
+        return F[(249-k0):(250+k0),(249-k0):(250+k0)]
 
 
     def grids_occupied_by_line(self, f, x1, x2):
@@ -285,7 +290,7 @@ class Workspace():
 
 
     def grids_encircled_by_lines(self,grids_list):
-        R = np.zeros((401,401))
+        R = np.zeros((500,500))
         grids = []
         for i in range(len(grids_list)):
             grids.extend(grids_list[i])
@@ -426,7 +431,7 @@ class Workspace():
 
     def __cost_maps(self):
         if self.time_series is not None:
-            cost_maps = np.zeros((201,401,401))
+            cost_maps = np.zeros((201,500,500))
             for i in range(201):
                 self.update(self.time_series[i])
                 cost_maps[i]=self.cost_map
