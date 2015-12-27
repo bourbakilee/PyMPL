@@ -102,7 +102,7 @@ def test_workspace():
     #
     ws = Workspace(vehicle=veh, road=road, lane_costs=lane_costs, static_obsts=obsts)
     # test_disk = ws.disk_filter(2)
-    test_veh = ws.vehicle_filter(theta = np.pi/4)
+    # test_veh = ws.vehicle_filter(theta = np.pi/4)
     #
     fig = plt.figure()
     ax1 = fig.add_subplot(111)
@@ -113,8 +113,8 @@ def test_workspace():
     # lane_map = np.where(lane_map > 0.6, 0.6, lane_map)
 
 
-    ax1.imshow(ws.lane_map,cmap=plt.cm.Greens, origin="lower",extent=(0.,100.125,0.,100.125))
-    plt.savefig('img/road_cost.png', dpi=600)
+    ax1.imshow(ws.collision_filter, cmap=plt.cm.Greens, origin="lower",extent=(0.,100.,0.,100.))
+    # plt.savefig('img/road_cost.png', dpi=600)
     plt.show()
 
 

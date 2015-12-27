@@ -7,7 +7,7 @@ from scipy.interpolate import interp1d
 from scipy.optimize import fsolve
 
 class Vehicle():
-    def __init__(self, length=4., width=1.6, wheelbase=2.4, trajectory=np.array([[-1.,-1.,49.9,49.9,0.,0.,0.,0.,0.,0.]])):
+    def __init__(self, wheelbase=2.94, front_offset=0.988, rear_offset=1.28, width=2.029, trajectory=np.array([[-1.,-1.,49.9,49.9,np.pi/6.,0.,0.,0.,0.,0.]])):
         # trajectory: N X 10 array - [ [t, s, x, y, theta, k, dk, v, a, j] ]
         # state: 1 X 6 vector - [t, x, y, theta, k, v]
         self.trajectory = trajectory
@@ -15,14 +15,18 @@ class Vehicle():
         self.traj_fun = None if trajectory[0,0] < 0. else interp1d(self.trajectory[:,0],self.trajectory[:,1:].T,kind='linear')
         # self.traj_fun2 = None if trajectory[0,1] < 0. else interp1d(self.trajectory[:,1],np.array([self.trajectory[:,0],self.trajectory[:,2],self.trajectory[:,3],self.trajectory[:,4],self.trajectory[:,5],self.trajectory[:,6],self.trajectory[:,7],self.trajectory[:,8],self.trajectory[:,9]]).T)
         # geometric parameters
-        self.length = length
-        self.width = width
         self.wheelbase = wheelbase
+        self.front_offset = front_offset
+        self.rear_offset = rear_offset
+        self.length = wheelbase + front_offset + rear_offset
+        self.width = width
+        
         #
         self.center_of_rear_axle = self.state[1:3]
         self.heading = self.state[3]
         c, s = np.cos(self.heading), np.sin(self.heading)
-        self.geometric_center = self.center_of_rear_axle + wheelbase/2*np.array([c,s])
+        self.geometric_center = self.center_of_rear_axle + (wheelbase+front_offset-rear_offset)/2*np.array([c,s])
+        length = self.length
         self.vertex = self.geometric_center + 0.5*np.array([
             [-c*length-s*width, -s*length+c*width],
             [-c*length+s*width,-s*length-c*width],
@@ -40,7 +44,8 @@ class Vehicle():
             self.center_of_rear_axle = self.state[1:3]
             self.heading = self.state[3]
             c, s = np.cos(self.heading), np.sin(self.heading)
-            self.geometric_center = self.center_of_rear_axle + wheelbase/2*np.array([c,s])
+            self.geometric_center = self.center_of_rear_axle + (wheelbase+front_offset-rear_offset)/2*np.array([c,s])
+            length = self.length
             self.vertex = self.geometric_center + 0.5*np.array([
                 [-c*length-s*width, -s*length+c*width],
                 [-c*length+s*width,-s*length-c*width],
@@ -62,7 +67,7 @@ class Vehicle():
         self.center_of_rear_axle = self.state[1:3]
         self.heading = self.state[3]
         c, s = np.cos(self.heading), np.sin(self.heading)
-        self.geometric_center = self.center_of_rear_axle + wheelbase/2*np.array([c,s])
+        self.geometric_center = self.center_of_rear_axle + (wheelbase+front_offset-rear_offset)/2*np.array([c,s])
         self.vertex = self.geometric_center + 0.5*np.array([
             [-c*length-s*width, -s*length+c*width],
             [-c*length+s*width,-s*length-c*width],
@@ -79,7 +84,7 @@ class Vehicle():
     #
     def covering_disk_centers(self):
         distance = 2.*self.length/3.
-        direction = np.array([np.sin(self.heading),np.cos(self.heading)])
+        direction = np.array([np.cos(self.heading),np.sin(self.heading)])
         centers = np.zeros((3,2))
         centers[1] = self.geometric_center
         centers[0] = centers[1] - distance * direction
