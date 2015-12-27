@@ -113,7 +113,8 @@ def test_workspace():
     # lane_map = np.where(lane_map > 0.6, 0.6, lane_map)
 
 
-    ax1.imshow(ws.collision_filter, cmap=plt.cm.Greens, origin="lower",extent=(0.,100.,0.,100.))
+    ax1.imshow(ws.cost_filter, cmap=plt.cm.Greens, origin="lower",extent=(0.,ws.resolution*ws.cost_filter.shape[1],0.,ws.resolution*ws.cost_filter.shape[0]))
+    np.savetxt('cost_filter.txt',ws.cost_filter,fmt='%i',delimiter=' ')
     # plt.savefig('img/road_cost.png', dpi=600)
     plt.show()
 

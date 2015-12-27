@@ -94,7 +94,7 @@ class Vehicle():
 
 
 class Road():
-    def __init__(self, center_line, lane_width=3.75, ref_grid_width=0.5, ref_grid_length=1.5):
+    def __init__(self, center_line, lane_width=3.5, ref_grid_width=0.5, ref_grid_length=1.5):
         # center_line: Nx5 array, [[s, x, y, theta, k],...]
         # # current_lane: {1,0,-1} - {right, middle, left}
         # lane_number = 3
@@ -193,7 +193,7 @@ class Workspace():
         #
         # self.disk = self.disk_filter()
         self.collision_filter = self.disk_filter(r=vehicle.covering_disk_radius())
-        self.cost_filter = self.disk_filter(r=vehicle.covering_disk_radius())
+        self.cost_filter = self.disk_filter(r=1.6)
         #
         self.time = 0. if self.moving_obsts is not None else None
         self.delta_t = 0.05
