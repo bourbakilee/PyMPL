@@ -153,7 +153,7 @@ def test_database():
 
 if __name__ == '__main__':
     # test_vehicle()
-    # test_road()
-    test_workspace()
+    test_road()
+    # test_workspace()
     # test()
     # test_traj()

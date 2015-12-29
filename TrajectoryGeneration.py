@@ -1,13 +1,14 @@
-# 2015.11.27 LI Yunsheng
-# 轨迹计算、轨迹评价
+# 2015.07.27 LI Yunsheng
+# Trajectory Calculation and Trajectory Evaluation
 
 import numpy as np
 from numpy import matlib
 from math import ceil, floor
 from scipy.interpolate import interp1d
-# import Environment as Env
-# import sqlite3
+# import Environment as Env # Environment module is not used here, because the trajectory evaluation procedure is just a trial and not include environment factors
+# import sqlite3 # donnot import sqlite3, just add a parameter of database connection to the functions which needs
 
+# k(s) = a + b*s + c*s**2 + d*s**3
 
 def __a(p):
     # p = (p0 ~ p3, sg)
@@ -40,7 +41,7 @@ def __xy_calc(s, r, ref_step=8.0):
     # r: (a,b,c,d) - k(s) = a + b*s + c*s**2 + d*s**3
     # return: x(s), y(s)
     # if s >= 0:
-    N = ceil(s/ref_step) #此处有bug 2015.11.30
+    N = ceil(s/ref_step) #here exists a bug 2015.11.30
     # else:
     #     N = abs(floor(s/ref_step))
     # print(s)
@@ -124,10 +125,11 @@ def optimize(bd_con, init_val=None):
         x_p, y_p = __xy_calc(p[4], r)
         dq = q_g -  matlib.matrix([[x_p],[y_p],[theta_p]])
         pp += J**-1*dq
+        # revise the parameters
         pp[0,0]= max(min(pp[0,0],0.2),-0.2)
         pp[1,0]= max(min(pp[1,0],0.2),-0.2)
         pp[2,0]= max(min(pp[2,0],1000.),0.)
-        # 检查参数边界条件，构建数据库时使用，实际计算时不必判断，迭代一定次数后若不满足精度要求即可认为求解失败
+        # 
         # if pp[0,0] > 0.2:
         #     pp[0,0] = 0.2
         # elif pp[0,0] < -0.2:
@@ -181,7 +183,7 @@ def calc_path(cursor, q0, q1):
     ss = np.sin(q0[2])
     x_r = (q1[0] - q0[0])*cc + (q1[1] - q0[1])*ss
     y_r = -(q1[0] - q0[0])*ss + (q1[1] - q0[1])*cc
-    theta_r = np.mod(q1[2]-q0[2], 2*np.pi) # InitialGuessTable中角度取值范围是[-pi/2, p1/2]
+    theta_r = np.mod(q1[2]-q0[2], 2*np.pi) # 
     if theta_r > np.pi:
         theta_r -= 2*np.pi
     bd_con = (q0[3], x_r, y_r, theta_r, q1[3])
@@ -210,7 +212,7 @@ def calc_velocity(v0, a0, vg, sg):
 
 
 def spiral3_calc(p, r=None, s=None, q=(0.,0.,0.), ref_delta_s=0.1):
-    # 计算路径上的点列
+    # 
     # p: (p0~p3, sg)
     # r: (a,b,c,d)
     # q0=(0,0,0)
@@ -277,7 +279,8 @@ def calc_trajectory(u, p, r=None, s=None, path=None, q0=None):
     trajectory[:,6] = np.array([b+2*c*ss+3*d*ss**2 for ss in trajectory[:,1]])*trajectory[:,7]
     return trajectory
 
-
+# this trajectory evaluation procedure is just a trial, the formal one has been writen in C++~~~~
+# trajectory evaluation - not only check the collision, also truncate the collision part of trajectory
 # add param - workspace
 def eval_trajectory(trajectory, workspace=None, weights=np.array([10., 1., 10., 10., 1., 0.1, 0.1, 0.1, 10., 1.]), p_lims=(20.,-5.,1.,0.2,10.)):
     # trajectory: array of points on trajectory - [(t,s,x,y,theta,k,dk,v,a,j)]
@@ -296,7 +299,7 @@ def eval_trajectory(trajectory, workspace=None, weights=np.array([10., 1., 10., 
     # cost_matrix[:,0:2] = trajectory[:,0:2] # t,s
     cost_matrix[:,0:5] = trajectory[:,5:10] # k,dk,v,a,j
     cost_matrix[:,5] = trajectory[:,5]*trajectory[:,7]**2 # lateral acc
-    # workspace cost 需要根据覆盖车辆的三个圆盘中心坐标来查询
+    # workspace cost 
     if workspace is not None:
         if workspace.moving_obsts is not None:
             cost_matrix[:,7] = workspace.cost_maps[[int(t/workspace.delta_t) for t in trajectory[:,0]], [int(x/workspace.resolution) for x in trajectory[:,2]], [int(y/workspace.resolution) for y in trajectory[:,3]]] # env cost

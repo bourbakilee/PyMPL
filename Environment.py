@@ -144,7 +144,8 @@ class Road():
         # return [x,y,theta,k]
         if 0<=s<=self.length:
             station = self.center_line_fun(s)
-            return np.array([station[0]-l*np.sin(station[2]), station[1]+l*np.cos(station[2]), station[2], (station[3]**-1-l)**-1])
+            k = 0. if abs(station[3])<1.e-10 else (station[3]**-1-l)**-1
+            return np.array([station[0]-l*np.sin(station[2]), station[1]+l*np.cos(station[2]), station[2], k])
         else:
             return None
 
