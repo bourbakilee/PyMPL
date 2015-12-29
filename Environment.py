@@ -79,7 +79,7 @@ class Vehicle():
 
     #
     def covering_disk_radius(self):
-        return np.sqrt(self.length**2/9. + self.width**2/4.)
+        return np.sqrt(self.length**2/9. + self.width**2)/2
 
     #
     def covering_disk_centers(self):
@@ -176,7 +176,7 @@ class Road():
 
 
 class Workspace():
-    def __init__(self,base=np.zeros((500,500)), resolution=0.2, vehicle=Vehicle(), road=None, current_lane=0, target_lane=0, lane_costs=None, static_obsts=None, moving_obsts=None):
+    def __init__(self,base=np.zeros((500,500)), resolution=0.2, vehicle=Vehicle(), road=None, current_lane=0, target_lane=0, lane_costs=[0.3,0.6,0.9], static_obsts=None, moving_obsts=None):
         # current_lane: {0,1,2} - {right, middle, left}, default: 0
         self.base = base
         self.row = base.shape[0]
@@ -249,7 +249,8 @@ class Workspace():
                 R[51+i, j] = 1.
                 R[49-i, j] = 1.
         F = R[(50-k0):(51+k0), (50-k0):(51+k0)]
-        return F
+        N = F.sum()
+        return F/N
 
 
     def vehicle_filter(self,theta=0.):
@@ -274,7 +275,8 @@ class Workspace():
         #             grids = self.grids_occupied_by_line(f,veh.vertex[j,0], veh.vertex[i,0])
         #     grids_list.append(grids)
         F = self.grids_occupied_by_polygon(veh.vertex)
-        return F[(249-k0):(250+k0),(249-k0):(250+k0)]
+        N = F.sum()
+        return F[(249-k0):(250+k0),(249-k0):(250+k0)]/N
 
 
     def grids_occupied_by_line(self, f, x1, x2):
@@ -309,7 +311,8 @@ class Workspace():
                 if j == len(grids):
                     break
             for k in range(grids[i][1], grids[j-1][1]+1):
-                R[k,grids[i][0]] = 1.
+                if 0<=k<500 and 0<=grids[i][0]<500:
+                    R[k,grids[i][0]] = 1.
             if j == len(grids):
                 break
             else:
@@ -337,6 +340,7 @@ class Workspace():
         return self.grids_encircled_by_lines(grids_list)
 
 
+# bug: vertical line
     def grids_of_lanes(self, road):
         # return: list of matrix map
         # if road is None:
@@ -350,23 +354,21 @@ class Workspace():
         for i in range(3):
             grids_list = []
             f2 = interp1d(ll[:,2*(i+1)*nl], ll[:,1+2*(i+1)*nl])
-            g = interp1d([ll[0,2*i*nl], ll[0,2*(i+1)*nl]], [ll[0, 1+2*i*nl], ll[0, 1+2*(i+1)*nl]])
-            h = interp1d([ll[-1,2*i*nl], ll[-1,2*(i+1)*nl]], [ll[-1, 1+2*i*nl], ll[-1, 1+2*(i+1)*nl]])
-            # print(2*i*nl, 2*(i+1)*nl, 1+2*i*nl, 1+2*(i+1)*nl)
-            # print(ll[0,2*i*nl], ll[0,2*(i+1)*nl], ll[0, 1+2*i*nl], ll[0, 1+2*(i+1)*nl])
-            # print(g)
-            # 可以修改grids_occupied_by_line函数，自动检测参数的大小，避免下面这样的处理。
-            # if ll[0,2*i*nl] < ll[0,2*(i+1)*nl]:
-            grids1 = self.grids_occupied_by_line(g, ll[0,2*i*nl], ll[0,2*(i+1)*nl])
-            # else:
-            #     grids1 = self.grids_occupied_by_line(g, ll[0,2*(i+1)*nl], ll[0,2*i*nl])
-            # if ll[-1,2*i*nl] < ll[-1,2*(i+1)*nl]:
-            grids2 = self.grids_occupied_by_line(h, ll[-1,2*i*nl], ll[-1,2*(i+1)*nl])
-            # else:
-            #     grids2 = self.grids_occupied_by_line(h, ll[-1,2*(i+1)*nl], ll[-1,2*i*nl])
-            # print(grids1)
-            # print(grids2)
-            # 下面默认f1、f2的参数是从小到大的。
+
+            x0, x1 = floor(ll[0,2*i*nl]/self.resolution), floor(ll[0,2*(i+1)*nl]/self.resolution)
+            if x0 != x1:
+                g = interp1d([ll[0,2*i*nl], ll[0,2*(i+1)*nl]], [ll[0, 1+2*i*nl], ll[0, 1+2*(i+1)*nl]])
+                grids1 = self.grids_occupied_by_line(g, ll[0,2*i*nl], ll[0,2*(i+1)*nl])
+            else:
+                grids1 = [(x0, floor(ll[0, 1+2*i*nl]/self.resolution)), (x1, floor(ll[0, 1+2*(i+1)*nl]/self.resolution))]
+
+            x0, x1 = floor(ll[-1,2*i*nl]/self.resolution), floor(ll[-1,2*(i+1)*nl]/self.resolution)
+            if x0!=x1:
+                h = interp1d([ll[-1,2*i*nl], ll[-1,2*(i+1)*nl]], [ll[-1, 1+2*i*nl], ll[-1, 1+2*(i+1)*nl]])
+                grids2 = self.grids_occupied_by_line(h, ll[-1,2*i*nl], ll[-1,2*(i+1)*nl])
+            else:
+                grids2 = [(x0, floor(ll[-1, 1+2*i*nl]/self.resolution)), (x1, floor(ll[-1, 1+2*(i+1)*nl]/self.resolution))]
+
             grids_list.append(self.grids_occupied_by_line(f1, ll[0,2*i*nl], ll[-1,2*i*nl]))
             grids_list.append(self.grids_occupied_by_line(f2, ll[0,2*(i+1)*nl], ll[-1,2*(i+1)*nl]))
             grids_list.append(grids1)
@@ -408,17 +410,20 @@ class Workspace():
 
 
     def __lane_map(self):
-        v1 = min(self.lane_costs)
-        p1 = self.lane_costs.index(v1)
-        v3 = max(self.lane_costs)
-        p3 = self.lane_costs.index(v3)
-        p2 = [i for i in [0,1,2] if i!=p1 and i!=p3][0]
-        v2 = self.lane_costs[p2]
-        lm = v1*self.lane_grids[p1] + v2*self.lane_grids[p2]
-        lm = np.where(lm>v2, (v1+v2)/2, lm)
-        lm += v3*self.lane_grids[p3]
-        lm = np.where(lm>v3, (v2+v3)/2, lm)
-        return lm
+        if self.lane_costs is not None:
+            v1 = min(self.lane_costs)
+            p1 = self.lane_costs.index(v1)
+            v3 = max(self.lane_costs)
+            p3 = self.lane_costs.index(v3)
+            p2 = [i for i in [0,1,2] if i!=p1 and i!=p3][0]
+            v2 = self.lane_costs[p2]
+            lm = v1*self.lane_grids[p1] + v2*self.lane_grids[p2]
+            lm = np.where(lm>v2, (v1+v2)/2, lm)
+            lm += v3*self.lane_grids[p3]
+            lm = np.where(lm>v3, (v2+v3)/2, lm)
+            return lm
+        else:
+            return None
 
 
     def __cost_map(self, flt=None, scale=255.):

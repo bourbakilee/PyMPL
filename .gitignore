@@ -65,3 +65,6 @@ target/
 # excel files
 *.xlsx
 *.xls
+
+# plain txt
+*.txt
