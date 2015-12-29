@@ -173,6 +173,16 @@ class Road():
             l0 = (tmp[0]-x)/np.sin(tmp[2])
         return np.array([s0[0], l0[0]])
 
+# gaussian filter 2D
+def fspecial_gauss(size, sigma=1):
+
+    """Function to mimic the 'fspecial' gaussian MATLAB function
+    """
+
+    x, y = np.mgrid[-size//2 + 1:size//2 + 1, -size//2 + 1:size//2 + 1]
+    g = np.exp(-((x**2 + y**2)/(2.0*sigma**2)))
+    return g/g.sum()
+
 
 
 class Workspace():
@@ -194,7 +204,9 @@ class Workspace():
         #
         # self.disk = self.disk_filter()
         self.collision_filter = self.disk_filter(r=vehicle.covering_disk_radius())
-        self.cost_filter = self.disk_filter(r=1.6)
+        cost_filter = self.disk_filter(1.5)
+        cost_filter *= fspecial_gauss(cost_filter.shape[0])
+        self.cost_filter = cost_filter/cost_filter.sum() # consider using gaussianblur filter method
         #
         self.time = 0. if self.moving_obsts is not None else None
         self.delta_t = 0.05

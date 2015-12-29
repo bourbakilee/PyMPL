@@ -84,8 +84,9 @@ if __name__ == '__main__':
     # cost map
     cost_map = cv2.filter2D(collision_map, -1, ws.cost_filter)
     cost_map += collision_map
-    cost_map = np.where(cost_map>1., 1., cost_map)
-    # np.savetxt('scenario_1/cost_grayscale_map.txt', cost_map, delimiter=' ')
+    cost_map = np.where(cost_map>1., 2., cost_map)
+    cost_map = np.where(cost_map<1.e-16, 0., cost_map)
+    np.savetxt('scenario_1/cost_grayscale_map.txt', cost_map, fmt='%1.6f', delimiter='\t')
 
     # plot
     fig = plt.figure()
