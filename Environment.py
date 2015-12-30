@@ -7,8 +7,8 @@ from scipy.interpolate import interp1d
 from scipy.optimize import fsolve
 
 class Vehicle():
-    def __init__(self, wheelbase=2.94, front_offset=0.988, rear_offset=1.28, width=2.029, trajectory=np.array([[-1.,-1.,49.9,49.9,np.pi/6.,0.,0.,0.,0.,0.]])):
-        # trajectory: N X 10 array - [ [t, s, x, y, theta, k, dk, v, a, j] ]
+    def __init__(self, wheelbase=2.94, front_offset=0.988, rear_offset=1.28, width=2.029, trajectory=np.array([[-1.,-1.,49.9,49.9,np.pi/6.,0.,0.,0.,0.]])):
+        # trajectory: N X 10 array - [ [t, s, x, y, theta, k, dk, v, a] ]
         # state: 1 X 6 vector - [t, x, y, theta, k, v]
         self.trajectory = trajectory
         self.state = np.array([trajectory[0,0], trajectory[0,2], trajectory[0,3], trajectory[0,4], trajectory[0,5], trajectory[0,7]])
@@ -84,12 +84,25 @@ class Vehicle():
     #
     def covering_disk_centers(self):
         distance = 2.*self.length/3.
-        direction = np.array([np.cos(self.heading),np.sin(self.heading)])
+        direction = np.zeros([np.cos(self.heading),np.sin(self.heading)])
         centers = np.zeros((3,2))
         centers[1] = self.geometric_center
         centers[0] = centers[1] - distance * direction
         centers[2] = centers[1] + distance * direction
         return centers
+
+    # traj: array of points on trajectory - [(t,s,x,y,theta,k,dk,v,a)]
+    def covering_centers(self, traj):
+        points = np.zeros((traj.shape[0], 6))
+        sin_t = np.sin(traj[:,4])
+        cos_t = np.cos(traj[:,4])
+        points[:,2] = traj[:,2] + cos_t*(self.wheelbase+self.front_offset-self.rear_offset)/2. # x2
+        points[:,3] = traj[:,3] + sin_t*(self.wheelbase+self.front_offset-self.rear_offset)/2. # y2
+        points[:,0] = points[:,2] + self.length*2/3*cos_t
+        points[:,1] = points[:,3] + self.length*2/3*sin_t
+        points[:,4] = points[:,2] - self.length*2/3*cos_t
+        points[:,5] = points[:,3] - self.length*2/3*sin_t
+        return points
 
 
 
@@ -171,7 +184,7 @@ class Road():
             l0 = (y-tmp[1])/np.cos(tmp[2])
         else:
             l0 = (tmp[0]-x)/np.sin(tmp[2])
-        return np.array([s0[0], l0[0]])
+        return l0
 
 # gaussian filter 2D
 def fspecial_gauss(size, sigma=1):

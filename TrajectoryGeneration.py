@@ -5,7 +5,7 @@ import numpy as np
 from numpy import matlib
 from math import ceil, floor
 from scipy.interpolate import interp1d
-# import Environment as Env # Environment module is not used here, because the trajectory evaluation procedure is just a trial and not include environment factors
+import Environment as Env # Environment module is not used here, because the trajectory evaluation procedure is just a trial and not include environment factors
 # import sqlite3 # donnot import sqlite3, just add a parameter of database connection to the functions which needs
 
 # k(s) = a + b*s + c*s**2 + d*s**3
@@ -188,7 +188,7 @@ def calc_path(cursor, q0, q1):
         theta_r -= 2*np.pi
     bd_con = (q0[3], x_r, y_r, theta_r, q1[3])
     init_val = select_init_val(cursor, bd_con) #
-    print(init_val)
+    # print(init_val)
     pp = optimize(bd_con, init_val) #
     if pp is None or pp[2]<0:
         p, r = None, None
@@ -246,23 +246,25 @@ def spiral3_calc(p, r=None, s=None, q=(0.,0.,0.), ref_delta_s=0.1):
     return line
 
 
-def calc_trajectory(u, p, r=None, s=None, path=None, q0=None):
+def calc_trajectory(u, p, r=None, s=None, path=None, q0=None, ref_time=0., ref_length=0.):
     # u: (u0~u2, tg)
     # p: (p0~p3, sg)
     # r: (a,b,c,d)
     # s: path length
     # path: [(s,x,y,theta,k)]
     # q0: (x0,y0,theta0)
-    # return: array of points on trajectory - [(t,s,x,y,theta,k,dk,v,a,j)]
+    # return: array of points on trajectory - [(t,s,x,y,theta,k,dk,v,a)]
     u0, u1, u2, tg = u
     if r is None:
         r = (__a(p), __b(p), __c(p), __d(p))
     # p0, p1, p2, p3, sg = p
     a, b, c, d = r
+    if s is None:
+        s = p[4]
     #
     if path is None:
         path = spiral3_calc(p, r, s, q0) # NX5 array
-    trajectory = np.zeros((path.shape[0], 10)) # NX10 array
+    trajectory = np.zeros((path.shape[0], 9)) # NX10 array
     trajectory[:,1:6] = path # s,x,y,theta,k
     trajectory[-1,0] = tg
     # time at given path length
@@ -274,47 +276,68 @@ def calc_trajectory(u, p, r=None, s=None, path=None, q0=None):
     #
     trajectory[:,7] = np.array([u0+u1*t+u2*t**2 for t in trajectory[:,0]]) # v
     trajectory[:,8] = np.array([u1+2*u2*t for t in trajectory[:,0]]) # a
-    trajectory[:,9] = 2*u2
+    # trajectory[:,9] = 2*u2
     # dk/dt
     trajectory[:,6] = np.array([b+2*c*ss+3*d*ss**2 for ss in trajectory[:,1]])*trajectory[:,7]
+    # revise the absolute time and length
+    trajectory[:,0] += ref_time
+    trajectory[:,1] += ref_length
     return trajectory
 
-# this trajectory evaluation procedure is just a trial, the formal one has been writen in C++~~~~
+
+# query cost from costmap
+# traj: array of points on trajectory - [(t,s,x,y,theta,k,dk,v,a)]
+def query_cost(traj, costmap, vehicle=None, resolution=0.2):
+    if vehicle is None:
+        vehicle = Vehicle()
+    points = vehicle.covering_centers(traj)
+    index = (points/resolution).astype(int)
+    cost = np.zeros((traj.shape[0],1))
+    for i in range(traj.shape[0]):
+        cost[i] = 1.5*costmap[index[i,1], index[i,0]] + costmap[index[i,3], index[i,2]] + 0.5*costmap[index[i,5], index[i,4]]
+    # print(cost)
+    return cost
+
+
+# this trajectory evaluation procedure is just a trial, the formal one has been writen in C++ ~~~~
 # trajectory evaluation - not only check the collision, also truncate the collision part of trajectory
-# add param - workspace
-def eval_trajectory(trajectory, workspace=None, weights=np.array([10., 1., 10., 10., 1., 0.1, 0.1, 0.1, 10., 1.]), p_lims=(20.,-5.,1.,0.2,10.)):
-    # trajectory: array of points on trajectory - [(t,s,x,y,theta,k,dk,v,a,j)]
-    # workspace: Environment.Workspace
-    # weights: weights for (t, s, k, dk, v, a, j, al, l, env)
-    # p_lims = (v_max, a_min, a_max, k_m, a_lm) 
+# 
+def eval_trajectory(trajectory, costmap, vehicle=Env.Vehicle(), road=None, resolution=0.2, weights=np.array([10., 10., 0.01, 1., 0.1, 0.1, 100., 10., -1., 1.]), p_lims=(0.2, 1.5, 20., 0., 3.1, -6.1, 8.)):
+    # trajectory: array of points on trajectory - [(t,s,x,y,theta,k,dk,v,a)]
+    # weights: weights for (k, dk, v, a, a_c, l, env, j, t, s)
+    # p_lims - { k_m, dk_m, v_max, v_min, a_max, a_min, ac_m } = (0.2,0.1,20,0,2,-6,10)
     # return: cost
     #
-    # if road is not None:
-    #     l_list = road.xy2sl(trajectory[2], trajectory[3])[1]
-    # al_list = trajectory[:,5]*trajectory[:,7]**2
-    delta_s = trajectory[1,1]
-    # w_t, w_s, w_k, w_dk, w_v, w_a, w_j, w_al, w_l = weights
-    v_max, a_min, a_max, k_m, a_lm = p_lims
-    cost_matrix = np.zeros((trajectory.shape[0],8)) #[(k,dk,v,a,j,al,l,env)]
-    # cost_matrix[:,0:2] = trajectory[:,0:2] # t,s
-    cost_matrix[:,0:5] = trajectory[:,5:10] # k,dk,v,a,j
-    cost_matrix[:,5] = trajectory[:,5]*trajectory[:,7]**2 # lateral acc
-    # workspace cost 
-    if workspace is not None:
-        if workspace.moving_obsts is not None:
-            cost_matrix[:,7] = workspace.cost_maps[[int(t/workspace.delta_t) for t in trajectory[:,0]], [int(x/workspace.resolution) for x in trajectory[:,2]], [int(y/workspace.resolution) for y in trajectory[:,3]]] # env cost
-        else:
-            cost_matrix[:,7] = workspace.cost_map[[int(x/workspace.resolution) for x in trajectory[:,2]], [int(y/workspace.resolution) for y in trajectory[:,3]]]
-        if workspace.road is not None:
-            cost_matrix[:,6] = abs(workspace.road.xy2sl(trajectory[2], trajectory[3])[1] - workspace.current_lane*workspace.road.lane_width)# lateral offsets
-    #
-    cost_matrix[:,2] = np.where(cost_matrix[:,2]>v_max, np.inf, cost_matrix[:,2]) # v
-    cost_matrix[:,3] = np.where(cost_matrix[:,3]>a_max, np.inf, cost_matrix[:,3]) # a
-    cost_matrix[:,3] = np.where(cost_matrix[:,3]<a_min, np.inf, cost_matrix[:,3]) # a
-    cost_matrix[:,0] = np.where(abs(cost_matrix[:,0])>k_m, np.inf, cost_matrix[:,0]) # k
-    cost_matrix[:,5] = np.where(abs(cost_matrix[:,5])>a_lm, np.inf, cost_matrix[:,5]) # a_l
-    #
-    return delta_s * sum(sum(cost_matrix*weights[2:10])) + weights[0]*trajectory[-1,0] + weights[1]*trajectory[-1,1]
+    delta_s = trajectory[1,1] - trajectory[0,1]
+    time = trajectory[-1,0] - trajectory[0,0]
+    length = trajectory[-1,1] - trajectory[0,1]
+    jerk = (trajectory[1,8] - trajectory[0,8])/(trajectory[1,0] - trajectory[0,0])
+    # print(delta_s, time, length, jerk)
+    # cost matrix
+    cost_matrix = np.zeros((trajectory.shape[0],7)) # k, dk, v, a, a_c, off_set(x,y), env(t,x,y,theta)
+    cost_matrix[:,0] = weights[0] * np.abs(trajectory[:,5]) # k
+    cost_matrix[:,1] = weights[1] * np.abs(trajectory[:,6]) # dk
+    cost_matrix[:,2] = weights[2] * trajectory[:,7]**2 # v
+    cost_matrix[:,3] = weights[3] * trajectory[:,8]**2 # a
+    cost_matrix[:,4] = weights[4] / weights[2] * np.abs(trajectory[:,5]) * cost_matrix[:,2] # a_c
+    if road is not None:
+        # false
+        l_list = road.xy2sl(trajectory[:,2], trajectory[:,3])
+        # print(l_list)
+        cost_matrix[:,5] = weights[5] * np.abs(l_list) # should also consider target lane offset
+    if costmap is not None:
+        cost_matrix[:,6] = weights[6]*query_cost(trajectory, costmap, vehicle, resolution)[:,0]
+    # cost matrix revise
+    cost_matrix[:,0] = np.where(np.abs(trajectory[:,5])>p_lims[0], np.inf, cost_matrix[:,0]) # k
+    cost_matrix[:,1] = np.where(np.abs(trajectory[:,6])>p_lims[1], np.inf, cost_matrix[:,1]) # dk
+    cost_matrix[:,2] = np.where(trajectory[:,7]>p_lims[2], np.inf, cost_matrix[:,2]) # v
+    cost_matrix[:,2] = np.where(trajectory[:,7]<p_lims[3], np.inf, cost_matrix[:,2]) # v
+    cost_matrix[:,3] = np.where(trajectory[:,8]>p_lims[4], np.inf, cost_matrix[:,3]) # a
+    cost_matrix[:,3] = np.where(trajectory[:,8]<p_lims[5], np.inf, cost_matrix[:,3]) # a
+    cost_matrix[:,4] = np.where(np.abs(cost_matrix[:,4])>weights[4]*p_lims[6], np.inf, cost_matrix[:,4]) # a_c
+    # cost synthesize 
+    return cost_matrix.sum()*length + weights[7]*np.abs(jerk)*length # +  weights[9]*length/(weights[8]*time)
+
 
 
 if __name__ == '__main__':
