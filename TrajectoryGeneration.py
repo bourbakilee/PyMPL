@@ -303,10 +303,10 @@ def query_cost(traj, costmap, vehicle=None, resolution=0.2):
 # trajectory evaluation - not only check the collision, also truncate the collision part of trajectory
 # 
 def eval_trajectory(trajectory, costmap, vehicle=Env.Vehicle(), road=None, resolution=0.2, \
-    weights=np.array([10., 10., 0.01, 1., 0.1, 0.1, 100., 10., -1., 1.]), p_lims=(np.inf, np.inf, np.inf, -np.inf, np.inf, -np.inf, np.inf)):
+    weights=np.array([10., 10., 0.01, 1., 0.1, 0.1, 100., 10., -1., 1.]), p_lims=(0.2,0.15,20.,0.,2.1,-6.1,6.)):
     # trajectory: array of points on trajectory - [(t,s,x,y,theta,k,dk,v,a)]
     # weights: weights for (k, dk, v, a, a_c, l, env, j, t, s)
-    # p_lims - { k_m, dk_m, v_max, v_min, a_max, a_min, ac_m } = (0.2,0.1,20,0,2,-6,10)
+    # p_lims - { k_m, dk_m, v_max, v_min, a_max, a_min, ac_m } = (0.2,0.1,20.,0.,2.,-6.,10.) - (np.inf, np.inf, np.inf, -np.inf, np.inf, -np.inf, np.inf)
     # return: cost
     #
     delta_s = trajectory[1,1] - trajectory[0,1]
@@ -337,7 +337,20 @@ def eval_trajectory(trajectory, costmap, vehicle=Env.Vehicle(), road=None, resol
     cost_matrix[:,3] = np.where(trajectory[:,8]<p_lims[5], np.inf, cost_matrix[:,3]) # a
     cost_matrix[:,4] = np.where(np.abs(cost_matrix[:,4])>weights[4]*p_lims[6], np.inf, cost_matrix[:,4]) # a_c
     # cost synthesize 
-    return cost_matrix.sum()*delta_s + weights[7]*np.abs(jerk)*length # +  weights[9]*length/(weights[8]*time)
+    row_cost = cost_matrix.sum(axis=1)
+    N = row_cost.shape[0]
+    M = 0
+    for i in range(N):
+        if not np.isinf(row_cost[i]):
+            M += 1
+        else:
+            break
+    if M == N:
+        return row_cost.sum()*delta_s + weights[7]*np.abs(jerk)*length, trajectory # +  weights[9]*length/(weights[8]*time)
+    elif M>2 and trajectory[2*M//3-1,1] - trajectory[0,1]>2.:
+        return row_cost[0:2*M//3].sum()*delta_s + weights[7]*np.abs(jerk)*(trajectory[2*M//3-1,1] - trajectory[0,1]), trajectory[0:2*M//3,:]
+    else:
+        return 0., None
 
 
 

@@ -107,7 +107,7 @@ class Vehicle():
 
 
 class Road():
-    def __init__(self, center_line, lane_width=3.5, ref_grid_width=0.5, ref_grid_length=1.5):
+    def __init__(self, center_line, lane_width=3.5, ref_grid_width=0.5, ref_grid_length=1.):
         # center_line: Nx5 array, [[s, x, y, theta, k],...]
         # # current_lane: {1,0,-1} - {right, middle, left}
         # lane_number = 3
@@ -472,3 +472,11 @@ class Workspace():
                 self.update(self.time_series[i])
                 cost_maps[i]=self.cost_map
             return cost_maps
+
+
+    # cost-map search
+    # current - (x,y)
+    # goal - (xg, yg)
+    # map - 500 X 500 grayscale map
+    def costmap_heuristic(current, goal, map):
+        heuristic = 0.
