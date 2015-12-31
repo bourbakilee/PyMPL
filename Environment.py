@@ -84,7 +84,7 @@ class Vehicle():
     #
     def covering_disk_centers(self):
         distance = 2.*self.length/3.
-        direction = np.zeros([np.cos(self.heading),np.sin(self.heading)])
+        direction = np.array([np.cos(self.heading),np.sin(self.heading)])
         centers = np.zeros((3,2))
         centers[1] = self.geometric_center
         centers[0] = centers[1] - distance * direction

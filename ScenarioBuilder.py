@@ -121,15 +121,13 @@ if __name__ == '__main__':
     s0 = 5.
     for n1 in [-2.,-1.,0.,1.]: # v1 = v0 + n1* dv/dt
         for n2 in [-2.,-1.,0.,1.,2.]: # l1 = l0 + n2* 0.5
-            v1 = min(max(v0 + n1*3, 0.), 20.)
-            l1 = min(max(l0 + n2/2, -road.width/2), road.width/2)
-            s1 = min(max(s0 + (v0+v1)/2, 0.), road.length)
-            r_i = int(s1/road.grid_length)
-            r_j = int(l1/road.grid_width)
-            q1 = road.ij2xy(r_i,r_j)
-            for n3 in [-2,-1,0,1,2]:
-                tmp = q1 + n3*np.array([0.,0.,0.1,0.])
-                print(tmp)
+            for n3 in [1.,2.,3.,4.,5.,6.,7.,8.,9.,10.]:
+                v1 = min(max(v0 + n1*2*n3, 0.), 20.)
+                l1 = min(max(l0 + n2/8*n3, -road.width/2), road.width/2)
+                s1 = min(max(s0 + (v0+v1)/2, 0.), road.length)
+                r_i = int(s1/road.grid_length)
+                r_j = int(l1/road.grid_width)
+                q1 = road.ij2xy(r_i,r_j)
                 p, r = TG.calc_path(cursor, cfg0, q1)
                 if r is not None:
                     # print(p,r)
@@ -142,9 +140,9 @@ if __name__ == '__main__':
                     # print(traj[:,7]**2*traj[:,5])
                     cost=TG.eval_trajectory(traj, cost_map, vehicle=veh,road=road)
                     # ax1.plot(spiral3_path[:,1], spiral3_path[:,2],  linewidth=3., label='{0}'.format(cost))
-                    if not np.isinf(cost):
-                        ax1.plot(spiral3_path[:,1], spiral3_path[:,2],  linewidth=3.)
-                        ax1.text(spiral3_path[-1,1],spiral3_path[-1,2],'{0:.2f}'.format(cost))
+                    # if not np.isinf(cost):
+                    ax1.plot(spiral3_path[:,1], spiral3_path[:,2],  linewidth=3.)
+                    ax1.text(spiral3_path[-1,1],spiral3_path[-1,2],'{0:.2f}'.format(cost))
     
     
     # close database connection
@@ -155,5 +153,3 @@ if __name__ == '__main__':
     # plt.legend()
     plt.axis('equal')
     plt.show()
-
-    
