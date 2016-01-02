@@ -132,7 +132,7 @@ if __name__ == '__main__':
 
     for i in range(road.grid_num_lateral+1):
         if (i % road.grid_num_per_lane) == 0:
-            ax1.plot(road.longitudinal_lines[:,2*i], road.longitudinal_lines[:,2*i+1], color='blue', linewidth=1.)
+            ax1.plot(road.longitudinal_lines[:,2*i], road.longitudinal_lines[:,2*i+1], color='green', linewidth=1.5)
         else:
             ax1.plot(road.longitudinal_lines[:,2*i], road.longitudinal_lines[:,2*i+1], color='black', linewidth=0.3)
     for i in range(road.grid_num_longitudinal+1):
@@ -192,8 +192,9 @@ if __name__ == '__main__':
     # plot
     # fig = plt.figure()
     # ax1 = fig.add_subplot(111)
-    ax1.imshow(cost_map, cmap=plt.cm.Greens, origin="lower",extent=(0.,ws.resolution*ws.row,0.,ws.resolution*ws.column))
-    ax1.plot(center_line[:,1], center_line[:,2], color='red', linestyle='--', linewidth=2.)
+    costmap_plot = np.where( cost_map >1., 1., cost_map)
+    ax1.imshow(costmap_plot, cmap=plt.cm.Reds, origin="lower",extent=(0.,ws.resolution*ws.row,0.,ws.resolution*ws.column))
+    ax1.plot(center_line[:,1], center_line[:,2], color='maroon', linestyle='--', linewidth=2.)
 
     # action space
     # print('q0:{0}'.format(cfg0))
@@ -254,9 +255,9 @@ if __name__ == '__main__':
                             next_state.update(cost, traj, road)
                             state_list.append(next_state)
                             # plot
-                            ax1.plot(traj[:,2], traj[:,3],  linewidth=3.)
+                            ax1.plot(traj[:,2], traj[:,3],  linewidth=1.)
                             # ax1.text(traj[-1,2], traj[-1,3],'{0:.2f}'.format(cost))
-        if count > 5000:
+        if count > 6000:
             break
     print(count)
 
