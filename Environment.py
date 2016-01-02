@@ -184,7 +184,8 @@ class Road():
             l0 = (y-tmp[1])/np.cos(tmp[2])
         else:
             l0 = (tmp[0]-x)/np.sin(tmp[2])
-        return l0
+        # return l0
+        return np.array([s0,l0])
 
 # gaussian filter 2D
 def fspecial_gauss(size, sigma=1):

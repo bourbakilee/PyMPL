@@ -114,6 +114,10 @@ def optimize(bd_con, init_val=None):
     p = (bd_con[0], init_val[0], init_val[1], bd_con[4], init_val[2])
     r = (__a(p), __b(p), __c(p), __d(p))
     pp = matlib.matrix([[init_val[0]], [init_val[1]], [init_val[2]]])
+    # revise the parameters
+    pp[0,0]= max(min(pp[0,0],0.2),-0.2)
+    pp[1,0]= max(min(pp[1,0],0.2),-0.2)
+    pp[2,0]= max(min(pp[2,0],1000.),1.)
     dq = matlib.matrix([[1.],[1.],[1.]])
     eps1, eps2 = 1.e-4, 1.e-6
     times = 0
@@ -128,7 +132,7 @@ def optimize(bd_con, init_val=None):
         # revise the parameters
         pp[0,0]= max(min(pp[0,0],0.2),-0.2)
         pp[1,0]= max(min(pp[1,0],0.2),-0.2)
-        pp[2,0]= max(min(pp[2,0],1000.),0.)
+        pp[2,0]= max(min(pp[2,0],1000.),1.)
         # 
         # if pp[0,0] > 0.2:
         #     pp[0,0] = 0.2
@@ -323,7 +327,7 @@ def eval_trajectory(trajectory, costmap, vehicle=Env.Vehicle(), road=None, resol
     cost_matrix[:,4] = weights[4] / weights[2] * np.abs(trajectory[:,5]) * cost_matrix[:,2] # a_c
     if road is not None:
         # false
-        l_list = road.xy2sl(trajectory[:,2], trajectory[:,3])
+        l_list = road.xy2sl(trajectory[:,2], trajectory[:,3])[1]
         # print(l_list)
         cost_matrix[:,5] = weights[5] * np.abs(l_list) # should also consider target lane offset
     if costmap is not None:
@@ -345,10 +349,11 @@ def eval_trajectory(trajectory, costmap, vehicle=Env.Vehicle(), road=None, resol
             M += 1
         else:
             break
-    if M == N:
+    Row = 2*M // 3
+    if M == N and trajectory[-1,1] - trajectory[0,1]>3.:
         return row_cost.sum()*delta_s + weights[7]*np.abs(jerk)*length, trajectory # +  weights[9]*length/(weights[8]*time)
-    elif M>2 and trajectory[2*M//3-1,1] - trajectory[0,1]>2.:
-        return row_cost[0:2*M//3].sum()*delta_s + weights[7]*np.abs(jerk)*(trajectory[2*M//3-1,1] - trajectory[0,1]), trajectory[0:2*M//3,:]
+    elif 2<M<N and trajectory[Row-1,1] - trajectory[0,1]>3.:
+        return row_cost[0:Row].sum()*delta_s + weights[7]*np.abs(jerk)*(trajectory[Row-1,1] - trajectory[0,1]), trajectory[0:Row,:]
     else:
         return 0., None
 
