@@ -64,6 +64,7 @@ class State:
         # must be updated
         self.time = time
         self.length = length
+        self.extended = False
         self.cost = 0.
         self.heuristic = 0.
         self.priority = 0.
@@ -74,7 +75,8 @@ class State:
 
 
     # traj - [t,s,x,y,theta,k,dk,v,a]
-    def update(self, cost, traj, road=None):
+    # ref cost - parent node's cost
+    def update(self, cost, traj, parent, road=None):
         self.x, self.y, self.theta, self.k = traj[-1,2:6]
         if road is not None:
             self.r_s, self.r_l = road.xy2sl(self.x,self.y)
@@ -83,13 +85,14 @@ class State:
         self.q = np.array([self.x, self.y, self.theta, self.k])
         self.time = traj[-1,0]
         self.length = traj[-1,1]
-        self.cost = cost
+        self.extended = True
+        self.cost = cost + parent.cost
         # self.heuristic -> update
         self.priority = self.heuristic + cost
 
 
     # {(i, j, v)}
-    def out_set(self, road, accs=[-6., -4., -2., 0., 2.], v_offset=[-0.5, 0., 0.5], times=[1., 2., 4. , 7.]):
+    def out_set(self, road, accs=[-4., -2., 0., 2.], v_offset=[-1., -0.5, 0., 0.5, 1.], times=[1., 2., 4.]):
         # road is not None
         # accs = [-2., -1., 0., 1.]
         # v_offset = [-0.5, 0., 0.5]
@@ -104,6 +107,9 @@ class State:
                     v = self.v + n1*n3
                     l = self.r_l + n2*n3
                     s = self.r_s + (self.v+v)/2*n3
+                    # x = self.x + s*np.cos(self.theta) - l*np.sin(self.theta)
+                    # y = self.y + s*np.sin(self.theta) + l*np.cos(self.theta)
+                    # s, l = road.xy2sl(x,y)
                     if -1.e-6<v<20+1.e-6 and -1.e-6<s<road.length+1.e-6 and -road.width/2<l<road.width/2:
                         i = int(s/road.grid_length)
                         j = int(l/road.grid_width)
@@ -162,10 +168,10 @@ if __name__ == '__main__':
     # np.savetxt('base_bitmap.txt', base, fmt='%i', delimiter=' ')
 
     # static obstacles
-    cfg1 = road.sl2xy(30., 0.)
-    cfg2 = road.sl2xy(30., -road.lane_width)
-    cfg3 = road.sl2xy(75.,0.)
-    cfg4 = road.sl2xy(75, road.lane_width)
+    cfg1 = road.sl2xy(25., 0.)
+    cfg2 = road.sl2xy(25., -road.lane_width)
+    cfg3 = road.sl2xy(55.,0.)
+    cfg4 = road.sl2xy(55., road.lane_width)
     obst1 = Vehicle(trajectory=np.array([[-1.,-1.,cfg1[0], cfg1[1], cfg1[2], cfg1[3], 0.,0.,0.]]))
     obst2 = Vehicle(trajectory=np.array([[-1.,-1.,cfg2[0], cfg2[1], cfg2[2], cfg2[3], 0.,0.,0.]]))
     obst3 = Vehicle(trajectory=np.array([[-1.,-1.,cfg3[0], cfg3[1], cfg3[2], cfg3[3], 0.,0.,0.]]))
@@ -233,6 +239,9 @@ if __name__ == '__main__':
 
     count = 0
     start_state = State(road=road, r_s=5., r_l=0., v=5.)
+    ax1.plot(start_state.x, start_state.y, 'rs')
+    goal_state = State(road=road, r_s=80., r_l=0., v=5.)
+    ax1.plot(goal_state.x, goal_state.y, 'rs')
     state_list = [start_state]
     while len(state_list)>0:
         # print(len(state_list))
@@ -249,15 +258,35 @@ if __name__ == '__main__':
                     if u[3] is not None and u[3]>0:
                         path = TG.spiral3_calc(p,r,q=current.q,ref_delta_s=0.2)
                         traj = TG.calc_trajectory(u,p,r,s=p[4],path=path,q0=current.q, ref_time=current.time, ref_length=current.length)
+                        # if next_state == goal_state:
+                        #     cost = TG.eval_trajectory(traj, cost_map, vehicle=veh, road=road, truncate=False)
+                        # else:
                         cost, traj = TG.eval_trajectory(traj, cost_map, vehicle=veh, road=road)
                         if not np.isinf(cost) and traj is not None:
                             count += 1
-                            next_state.update(cost, traj, road)
+                            next_state.update(cost, traj, current, road)
                             state_list.append(next_state)
                             # plot
                             ax1.plot(traj[:,2], traj[:,3],  linewidth=1.)
                             # ax1.text(traj[-1,2], traj[-1,3],'{0:.2f}'.format(cost))
-        if count > 6000:
+        next_state = goal_state
+        p, r = TG.calc_path(cursor, current.q, next_state.q)
+        if r is not None:
+            if p[4]>0:
+                u = TG.calc_velocity(current.v, a, v, p[4])
+                if u[3] is not None and u[3]>0:
+                    path = TG.spiral3_calc(p,r,q=current.q,ref_delta_s=0.2)
+                    traj = TG.calc_trajectory(u,p,r,s=p[4],path=path,q0=current.q, ref_time=current.time, ref_length=current.length)
+                    cost = TG.eval_trajectory(traj, cost_map, vehicle=veh, road=road, truncate=False)
+                    if not np.isinf(cost) and traj is not None:
+                        count += 1
+                        next_state.update(cost, traj, current, road)
+                        state_list.append(next_state)
+                        # plot
+                        ax1.plot(traj[:,2], traj[:,3],  linewidth=1.)
+                        # ax1.text(traj[-1,2], traj[-1,3],'{0:.2f}'.format(cost))
+        # if count > 2000:
+        if goal_state.extended:
             break
     print(count)
 
@@ -269,5 +298,5 @@ if __name__ == '__main__':
     #
     # plt.legend()
     plt.axis('equal')
-    plt.savefig('scenario_1/planning_result.png', dpi=600)
+    # plt.savefig('scenario_1/planning_result.png', dpi=600)
     plt.show()

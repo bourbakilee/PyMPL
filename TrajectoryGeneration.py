@@ -110,14 +110,16 @@ def optimize(bd_con, init_val=None):
     # init_val: (p1, p2, sg)
     if init_val is None or init_val[2]<0:
         init_val = ((2*bd_con[0]+bd_con[4])/3, (bd_con[0]+2*bd_con[4])/3, np.sqrt(bd_con[1]**2+bd_con[2]**2)+5*min(np.abs(bd_con[3]), np.abs(2*np.pi-bd_con[3])))
+    # revise the parameters
+    init_val = list(init_val)
+    init_val[0]= max(min(init_val[0],0.2),-0.2)
+    init_val[1]= max(min(init_val[1],0.2),-0.2)
+    init_val[2]= max(min(init_val[2],1000.),1.)
     q_g = matlib.matrix([[bd_con[1]], [bd_con[2]], [bd_con[3]]])
     p = (bd_con[0], init_val[0], init_val[1], bd_con[4], init_val[2])
     r = (__a(p), __b(p), __c(p), __d(p))
     pp = matlib.matrix([[init_val[0]], [init_val[1]], [init_val[2]]])
-    # revise the parameters
-    pp[0,0]= max(min(pp[0,0],0.2),-0.2)
-    pp[1,0]= max(min(pp[1,0],0.2),-0.2)
-    pp[2,0]= max(min(pp[2,0],1000.),1.)
+    
     dq = matlib.matrix([[1.],[1.],[1.]])
     eps1, eps2 = 1.e-4, 1.e-6
     times = 0
@@ -306,7 +308,7 @@ def query_cost(traj, costmap, vehicle=None, resolution=0.2):
 # this trajectory evaluation procedure is just a trial, the formal one has been writen in C++ ~~~~
 # trajectory evaluation - not only check the collision, also truncate the collision part of trajectory
 # 
-def eval_trajectory(trajectory, costmap, vehicle=Env.Vehicle(), road=None, resolution=0.2, \
+def eval_trajectory(trajectory, costmap, vehicle=Env.Vehicle(), road=None, resolution=0.2, truncate=True, \
     weights=np.array([10., 10., 0.01, 1., 0.1, 0.1, 100., 10., -1., 1.]), p_lims=(0.2,0.15,20.,0.,2.1,-6.1,6.)):
     # trajectory: array of points on trajectory - [(t,s,x,y,theta,k,dk,v,a)]
     # weights: weights for (k, dk, v, a, a_c, l, env, j, t, s)
@@ -341,21 +343,24 @@ def eval_trajectory(trajectory, costmap, vehicle=Env.Vehicle(), road=None, resol
     cost_matrix[:,3] = np.where(trajectory[:,8]<p_lims[5], np.inf, cost_matrix[:,3]) # a
     cost_matrix[:,4] = np.where(np.abs(cost_matrix[:,4])>weights[4]*p_lims[6], np.inf, cost_matrix[:,4]) # a_c
     # cost synthesize 
-    row_cost = cost_matrix.sum(axis=1)
-    N = row_cost.shape[0]
-    M = 0
-    for i in range(N):
-        if not np.isinf(row_cost[i]):
-            M += 1
+    if truncate:
+        row_cost = cost_matrix.sum(axis=1)
+        N = row_cost.shape[0]
+        M = 0
+        for i in range(N):
+            if not np.isinf(row_cost[i]):
+                M += 1
+            else:
+                break
+        Row = 2*M // 3
+        if M == N and trajectory[-1,1] - trajectory[0,1]>3.:
+            return row_cost.sum()*delta_s + weights[7]*np.abs(jerk)*length, trajectory # +  weights[9]*length/(weights[8]*time)
+        elif 2<M<N and trajectory[Row-1,1] - trajectory[0,1]>3.:
+            return row_cost[0:Row].sum()*delta_s + weights[7]*np.abs(jerk)*(trajectory[Row-1,1] - trajectory[0,1]), trajectory[0:Row,:]
         else:
-            break
-    Row = 2*M // 3
-    if M == N and trajectory[-1,1] - trajectory[0,1]>3.:
-        return row_cost.sum()*delta_s + weights[7]*np.abs(jerk)*length, trajectory # +  weights[9]*length/(weights[8]*time)
-    elif 2<M<N and trajectory[Row-1,1] - trajectory[0,1]>3.:
-        return row_cost[0:Row].sum()*delta_s + weights[7]*np.abs(jerk)*(trajectory[Row-1,1] - trajectory[0,1]), trajectory[0:Row,:]
+            return 0., None
     else:
-        return 0., None
+        return cost_matrix.sum()*delta_s + weights[7]*np.abs(jerk)*length # +  weights[9]*length/(weights[8]*time)
 
 
 

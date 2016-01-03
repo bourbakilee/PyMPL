@@ -177,15 +177,18 @@ class Road():
 
 
     def xy2sl(self, x, y):
-        f = lambda s: self.__xys(x,y,s)
-        s0 = fsolve(f, self.length/2)
-        tmp = self.center_line_fun(s0)
-        if abs(tmp[2]) < 1.e-4:
-            l0 = (y-tmp[1])/np.cos(tmp[2])
-        else:
-            l0 = (tmp[0]-x)/np.sin(tmp[2])
-        # return l0
-        return np.array([s0,l0])
+        try:
+            f = lambda s: self.__xys(x,y,s)
+            s0 = fsolve(f, self.length/2)
+            tmp = self.center_line_fun(s0)
+            if abs(tmp[2]) < 1.e-4:
+                l0 = (y-tmp[1])/np.cos(tmp[2])
+            else:
+                l0 = (tmp[0]-x)/np.sin(tmp[2])
+            # return l0
+            return np.array([s0,l0])
+        except ValueError:
+            return np.array([np.inf, np.inf])
 
 # gaussian filter 2D
 def fspecial_gauss(size, sigma=1):
