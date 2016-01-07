@@ -482,102 +482,10 @@ class Workspace():
     # current - (x,y)
     # goal - (xg, yg)
     # map - 500 X 500 grayscale map
+    @staticmethod
     def costmap_heuristic(current, goal, map):
         heuristic = 0.
 
 
 
 
-
-
-
-
-class State:
-    def __init__(self, time=0., length=0.,road=None, r_i=None, r_j=None, r_s=None, r_l=None, x=0., y=0., theta=0., k=0., v=0., acc=0.):
-        if road is not None:
-            if r_i is not None and r_j is not None:
-                self.r_i = r_i # int
-                self.r_j = r_j # int
-                self.r_s = road.longitudinal_biases[r_i]
-                self.r_l = road.lateral_biases[r_j + road.grid_num_lateral//2]
-                self.x, self.y, self.theta, self.k = road.sl2xy(self.r_s, self.r_l)
-            elif r_s is not None and r_l is not None:
-                self.r_s = r_s
-                self.r_l = r_l
-                self.r_i = int(r_s/road.grid_length)
-                self.r_j = int(r_l/road.grid_width)
-                self.x, self.y, self.theta, self.k = road.sl2xy(self.r_s, self.r_l)
-            else:
-                self.x, self.y, self.theta, self.k = x, y, theta, k
-                self.r_s, self.r_l = road.xy2sl(x,y)
-                self.r_i, self.r_j = int(self.r_s/road.grid_length), int(self.r_l/road.grid_width)
-        else:
-            self.x, self.y, self.theta, self.k = x, y, theta, k
-            self.r_s, self.r_l = -1., -1.
-            self.r_i, self.r_j = -1, -1
-        self.v = v
-        self.q = np.array([self.x, self.y, self.theta, self.k])
-        # self.dk = 0.
-        self.a = acc # not actual acceleration
-        # self.current_lane = 0 # int
-        # self.target_lane = 0 # int
-        # 
-        # must be updated
-        self.time = time
-        self.length = length
-        self.extended = False
-        self.parent = None
-        self.cost = 0.
-        self.heuristic = 0.
-        self.priority = 0.
-
-
-    def __cmp__(self, other):
-        return cmp( self.priority , other.priority )
-
-
-    # traj - [t,s,x,y,theta,k,dk,v,a]
-    # ref cost - parent node's cost
-    def update(self, cost, traj, parent, road=None):
-        self.x, self.y, self.theta, self.k = traj[-1,2:6]
-        if road is not None:
-            self.r_s, self.r_l = road.xy2sl(self.x,self.y)
-            self.r_i, self.r_j = int(self.r_s/road.grid_length), int(self.r_l/road.grid_width)
-        self.v = traj[-1,7]
-        self.q = np.array([self.x, self.y, self.theta, self.k])
-        self.time = traj[-1,0]
-        self.length = traj[-1,1]
-        self.extended = True
-        self.parent = parent
-        self.cost = cost + parent.cost
-        # self.heuristic -> update
-        self.priority = self.heuristic + cost
-
-
-    # {next_state}
-    def control_set(self, road, goal, accs=[-4., -2., 0., 2.], v_offset=[-1., -0.5, 0., 0.5, 1.], times=[1., 2., 4.], \
-        p_lims=(0.2,0.15,20.+1.e-6,-1.e-6,2.1,-6.,6.)):
-        # road is not None
-        # goal state is not None
-        # accs = [-2., -1., 0., 1.]
-        # v_offset = [-0.5, 0., 0.5]
-        # times = [1., 2., 4. , 7.]
-        # p_lims - { k_m, dk_m, v_max, v_min, a_max, a_min, ac_m } = (0.2,0.1,20.,0.,2.,-6.,10.)
-        outs = []
-        # if (self.v + goal.v)/2*5 < goal.r_s - self.r_s:
-        # if random.random()<0.1:
-        outs.append(goal)
-        for n1 in accs:
-            for n2 in v_offset:
-                for n3 in times:
-                    v = self.v + n1*n3
-                    l = self.r_l + n2*n3
-                    s = self.r_s + (self.v+v)/2*n3
-                    # x = self.x + s*np.cos(self.theta) - l*np.sin(self.theta)
-                    # y = self.y + s*np.sin(self.theta) + l*np.cos(self.theta)
-                    # s, l = road.xy2sl(x,y)
-                    i = int(s/road.grid_length)
-                    j = int(l/road.grid_width)
-                    if self.r_i < i < goal.r_i and abs(j) < road.grid_num_lateral//2 and p_lims[3] < v < p_lims[2]:
-                        outs.append(State(road=road, r_i=i, r_j=j, v=v, acc=n1))
-        return outs

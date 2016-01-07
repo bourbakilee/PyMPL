@@ -1,15 +1,15 @@
 from Environment import *
 import TrajectoryGeneration as TG
+from OnRoadPlanning import State, Astar
 import cv2
 from math import ceil, floor
-import random
-import matplotlib.pyplot as plt 
+# import random
+import matplotlib.pyplot as plt
 from matplotlib.path import Path
 import matplotlib.patches as patches
 import sqlite3
 
-
-
+from queue import PriorityQueue
 
 
 def senarios_1():
@@ -96,39 +96,20 @@ def senarios_1():
     ax1.plot(center_line[:,1], center_line[:,2], color='maroon', linestyle='--', linewidth=1.5)
 
 
-    count = 0
-    traj_dict = {} #
+    # count = 0
+    # traj_dict = {} #
 
-    start_state = State(road=road, r_s=5., r_l=0., v=5.)
+    start_state = State(road=road, r_s=5., r_l=0., v=5.,cost=0.)
     ax1.plot(start_state.x, start_state.y, 'rs')
     goal_state = State(road=road, r_s=80., r_l=0., v=5.)
     ax1.plot(goal_state.x, goal_state.y, 'rs')
 
-    state_list = [start_state]
-    while not goal_state.extended and len(state_list)>0:
-        # print(len(state_list))
-        current = state_list.pop(0)
-        outs = current.control_set(road=road, goal=goal_state)
-        for next_state in outs:
-            p, r = TG.calc_path(cursor, current.q, next_state.q)
-            if r is not None and p[4]>0:
-                u = TG.calc_velocity(current.v, next_state.a, next_state.v, p[4])
-                if u[3] is not None and u[3]>0:
-                    path = TG.spiral3_calc(p,r,q=current.q,ref_delta_s=0.2)
-                    traj = TG.calc_trajectory(u,p,r,s=p[4],path=path,q0=current.q, ref_time=current.time, ref_length=current.length)
-                    if next_state == goal_state:
-                        cost = TG.eval_trajectory(traj, cost_map, vehicle=veh, road=road, truncate=False)
-                    else:
-                        cost, traj = TG.eval_trajectory(traj, cost_map, vehicle=veh, road=road)
-                    if not np.isinf(cost) and traj is not None:
-                        count += 1
-                        next_state.update(cost, traj, current, road)
-                        state_list.append(next_state)
-                        traj_dict[(current, next_state)] = traj #
-                        # plot
-                        ax1.plot(traj[:,2], traj[:,3], color='black', linewidth=0.5)
-                        # ax1.text(traj[-1,2], traj[-1,3],'{0:.2f}'.format(cost))
-    print(count)
+    # state_list = PriorityQueue()
+    # state_list.put(start_state)
+
+    res, state_dict, traj_dict = Astar(start_state, goal_state, road, cost_map, veh, cursor)
+
+
     state = goal_state
     while state.parent is not None:
         traj = traj_dict[(state.parent, state)]

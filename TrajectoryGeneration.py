@@ -354,11 +354,11 @@ def eval_trajectory(trajectory, costmap, vehicle=Env.Vehicle(), road=None, resol
                 break
         Row = 2*M // 3
         if M == N and trajectory[-1,1] - trajectory[0,1]>3.:
-            return row_cost.sum()*delta_s + weights[7]*np.abs(jerk)*length, trajectory # +  weights[9]*length/(weights[8]*time)
+            return row_cost.sum()*delta_s + weights[7]*np.abs(jerk)*length, trajectory, False # +  weights[9]*length/(weights[8]*time)
         elif 2<M<N and trajectory[Row-1,1] - trajectory[0,1]>3.:
-            return row_cost[0:Row].sum()*delta_s + weights[7]*np.abs(jerk)*(trajectory[Row-1,1] - trajectory[0,1]), trajectory[0:Row,:]
+            return row_cost[0:Row].sum()*delta_s + weights[7]*np.abs(jerk)*(trajectory[Row-1,1] - trajectory[0,1]), trajectory[0:Row,:], True
         else:
-            return 0., None
+            return 0., None, True
     else:
         return cost_matrix.sum()*delta_s + weights[7]*np.abs(jerk)*length # +  weights[9]*length/(weights[8]*time)
 
