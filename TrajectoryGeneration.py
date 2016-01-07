@@ -309,7 +309,7 @@ def query_cost(traj, costmap, vehicle=None, resolution=0.2):
 # trajectory evaluation - not only check the collision, also truncate the collision part of trajectory
 # 
 def eval_trajectory(trajectory, costmap, vehicle=Env.Vehicle(), road=None, resolution=0.2, truncate=True, \
-    weights=np.array([10., 10., 0.01, 1., 0.1, 0.1, 100., 10., -1., 1.]), p_lims=(0.2,0.15,20.+1.e-6,-1.e-6,2.1,-6.,6.)):
+    weights=np.array([5., 10., 0.05, 0.2, 0.2, 0.2, 10., 0.5, 10., -2.]), p_lims=(0.2,0.15,20.+1.e-6,-1.e-6,2.1,-6.,6.)):
     # trajectory: array of points on trajectory - [(t,s,x,y,theta,k,dk,v,a)]
     # weights: weights for (k, dk, v, a, a_c, l, env, j, t, s)
     # p_lims - { k_m, dk_m, v_max, v_min, a_max, a_min, ac_m } = (0.2,0.1,20.,0.,2.,-6.,10.) - (np.inf, np.inf, np.inf, -np.inf, np.inf, -np.inf, np.inf)
@@ -324,9 +324,9 @@ def eval_trajectory(trajectory, costmap, vehicle=Env.Vehicle(), road=None, resol
     cost_matrix = np.zeros((trajectory.shape[0],7)) # k, dk, v, a, a_c, off_set(x,y), env(t,x,y,theta)
     cost_matrix[:,0] = weights[0] * np.abs(trajectory[:,5]) # k
     cost_matrix[:,1] = weights[1] * np.abs(trajectory[:,6]) # dk
-    cost_matrix[:,2] = weights[2] * trajectory[:,7]**2 # v
-    cost_matrix[:,3] = weights[3] * trajectory[:,8]**2 # a
-    cost_matrix[:,4] = weights[4] / weights[2] * np.abs(trajectory[:,5]) * cost_matrix[:,2] # a_c
+    cost_matrix[:,2] = weights[2] * np.abs(trajectory[:,7]) # v
+    cost_matrix[:,3] = weights[3] * np.abs(trajectory[:,8]) # a
+    cost_matrix[:,4] = weights[4] * np.abs(trajectory[:,5]) * trajectory[:,7]**2 # a_c
     if road is not None:
         # false
         l_list = road.xy2sl(trajectory[:,2], trajectory[:,3])[1]
@@ -354,13 +354,13 @@ def eval_trajectory(trajectory, costmap, vehicle=Env.Vehicle(), road=None, resol
                 break
         Row = 2*M // 3
         if M == N and trajectory[-1,1] - trajectory[0,1]>3.:
-            return row_cost.sum()*delta_s + weights[7]*np.abs(jerk)*length, trajectory, False # +  weights[9]*length/(weights[8]*time)
+            return row_cost.sum()*delta_s + weights[7]*np.abs(jerk)*length + weights[8]*time + weights[9]*length, trajectory, False
         elif 2<M<N and trajectory[Row-1,1] - trajectory[0,1]>3.:
-            return row_cost[0:Row].sum()*delta_s + weights[7]*np.abs(jerk)*(trajectory[Row-1,1] - trajectory[0,1]), trajectory[0:Row,:], True
+            return row_cost[0:Row].sum()*delta_s + (weights[7]*np.abs(jerk)+weights[9])*(trajectory[Row-1,1] - trajectory[0,1]) + weights[8]*(trajectory[Row-1,0]-trajectory[0,0]), trajectory[0:Row,:], True
         else:
             return 0., None, True
     else:
-        return cost_matrix.sum()*delta_s + weights[7]*np.abs(jerk)*length # +  weights[9]*length/(weights[8]*time)
+        return cost_matrix.sum()*delta_s + weights[7]*np.abs(jerk)*length + weights[8]*time + weights[9]*length # +  weights[9]*length/(weights[8]*time)
 
 
 

@@ -4,7 +4,7 @@ from queue import PriorityQueue
 
 
 class State:
-    def __init__(self, time=0., length=0.,road=None, r_i=None, r_j=None, r_s=None, r_l=None, \
+    def __init__(self, time=np.inf, length=np.inf,road=None, r_i=None, r_j=None, r_s=None, r_l=None, \
         x=0., y=0., theta=0., k=0., v=0., acc=0., cost=np.inf, goal = None):
         if road is not None:
             if r_i is not None and r_j is not None:
@@ -16,13 +16,13 @@ class State:
             elif r_s is not None and r_l is not None:
                 self.r_s = r_s
                 self.r_l = r_l
-                self.r_i = int(r_s/road.grid_length)
-                self.r_j = int(r_l/road.grid_width)
+                self.r_i = int(round(r_s/road.grid_length))
+                self.r_j = int(round(r_l/road.grid_width))
                 self.x, self.y, self.theta, self.k = road.sl2xy(self.r_s, self.r_l)
             else:
                 self.x, self.y, self.theta, self.k = x, y, theta, k
-                self.r_s, self.r_l = road.xy2sl(x,y)
-                self.r_i, self.r_j = int(self.r_s/road.grid_length), int(self.r_l/road.grid_width)
+                self.r_s, self.r_l = road.xy2sl(x,y)[0:2,0]
+                self.r_i, self.r_j = int(round(self.r_s/road.grid_length)), int(round(self.r_l/road.grid_width))
         else:
             self.x, self.y, self.theta, self.k = x, y, theta, k
             self.r_s, self.r_l = -1., -1.
@@ -69,8 +69,8 @@ class State:
 
     def update2(self, parent, cost, traj, road):
         self.x, self.y, self.theta, self.k = traj[-1,2:6]
-        self.r_s, self.r_l = road.xy2sl(self.x,self.y)
-        self.r_i, self.r_j = int(self.r_s/road.grid_length), int(self.r_l/road.grid_width)
+        self.r_s, self.r_l = road.xy2sl(self.x,self.y)[0:2,0]
+        self.r_i, self.r_j = int(round(self.r_s/road.grid_length)), int(round(self.r_l/road.grid_width))
         self.v = traj[-1,7]
         self.a = traj[-1,8]
         self.q = np.array([self.x, self.y, self.theta, self.k])
@@ -87,22 +87,22 @@ class State:
     # ref cost - parent node's cost
     # state_dict - {(i,j,k):state(i,j,v)}
     @staticmethod
-    def post_process(current, successor, goal, cost, traj, truncated, pq, state_dict, traj_dict, vehicle, road, costmap, cursor):
+    def post_process(current, successor, goal, cost, traj, truncated, pq, state_dict, traj_dict, vehicle, road, costmap, cursor, weights=np.array([5., 10., 0.05, 0.2, 0.2, 0.2, 10., 0.5, 10., -2.])):
         if not truncated:
             if successor.update(current, cost, traj):
                 pq.put(successor)
                 if successor != goal:
-                    state_dict[(successor.r_i, successor.r_j, int(successor.v/2))] = successor
+                    state_dict[(successor.r_i, successor.r_j, int(round(successor.v/2)))] = successor
                 traj_dict[(current, successor)] = traj
         else:
             successor.update2(current, cost, traj, road)
-            i, j, k = successor.r_i, successor.r_j, int(successor.v/2)
+            i, j, k = successor.r_i, successor.r_j, int(round(successor.v/2))
             try:
                 state = state_dict[(i,j,k)]
                 if state.distance(successor) > 1.e-4:
                     traj = trajectory(current, state, cursor)
                     if traj is not None:
-                        cost = TG.eval_trajectory(traj, costmap, vehicle=vehicle, road=road, truncate=False)
+                        cost = TG.eval_trajectory(traj, costmap, vehicle=vehicle, road=road, truncate=False, weights=weights)
                         if not np.isinf(cost):
                             successor = state 
                         else:
@@ -146,9 +146,9 @@ class State:
                     # x = self.x + s*np.cos(self.theta) - l*np.sin(self.theta)
                     # y = self.y + s*np.sin(self.theta) + l*np.cos(self.theta)
                     # s, l = road.xy2sl(x,y)
-                    i = int(s/road.grid_length)
-                    j = int(l/road.grid_width)
-                    k = int(v/2)
+                    i = int(round(s/road.grid_length))
+                    j = int(round(l/road.grid_width))
+                    k = int(round(v/2))
                     try:
                         state = state_dict[(i,j,k)]
                     except KeyError:
@@ -166,7 +166,7 @@ class State:
 def trajectory(start, goal, cursor):
     p, r = TG.calc_path(cursor, start.q, goal.q)
     if r is not None and p[4]>0:
-        u = TG.calc_velocity(start.v, goal.a, goal.v, p[4])
+        u = TG.calc_velocity(start.v, start.a, goal.v, p[4])
         if u[3] is not None and u[3]>0:
             path = TG.spiral3_calc(p,r,q=start.q,ref_delta_s=0.2)
             traj = TG.calc_trajectory(u,p,r,s=p[4],path=path,q0=start.q, ref_time=start.time, ref_length=start.length)
@@ -175,32 +175,33 @@ def trajectory(start, goal, cursor):
 
 
 
-def Astar(start, goal, road, cost_map, vehicle, cursor):
+def Astar(start, goal, road, cost_map, vehicle, cursor, weights=np.array([5., 10., 0.05, 0.2, 0.2, 0.2, 10., 0.5, 10., -2.])):
     # pq - priority queue of states waiting to be extended, multiprocessing
     # node_dict - {(i,j,k):state}
     # edge_dict - store trajectory, {(state1, state2):trajectory}
     # pq, node_dict, edge_dict are better defined outside, for multiprocessing
+    count = 0
     pq = PriorityQueue()
     pq.put(start)
-    node_dict = {(start.r_i, start.r_j, int(start.v/2)):start, (goal.r_i, goal.r_j, int(goal.v/2)):goal}
+    node_dict = {(start.r_i, start.r_j, int(round(start.v/2))):start, (goal.r_i, goal.r_j, int(round(goal.v/2))):goal}
     edge_dict = {}
-    while not goal.extend: # and not pq.empty():
+    while not goal.extend and not pq.empty():
         current = pq.get()
-        # print(pq.qsize())
-        #!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
         successors = current.successors(state_dict=node_dict, road=road, goal=goal)
         current.extend = True
         for successor in successors:
+            count += 1
             traj = trajectory(current, successor, cursor)
             if traj is not None:
                 if successor == goal:
-                    cost = TG.eval_trajectory(traj, cost_map, vehicle=vehicle, road=road, truncate=False)
+                    cost = TG.eval_trajectory(traj, cost_map, vehicle=vehicle, road=road, truncate=False, weights=weights)
                     truncated = False
                 else:
-                    cost, traj, truncated = TG.eval_trajectory(traj, cost_map, vehicle=vehicle, road=road)
+                    cost, traj, truncated = TG.eval_trajectory(traj, cost_map, vehicle=vehicle, road=road, weights=weights)
                 if not np.isinf(cost) and traj is not None:
-                    State.post_process(current, successor, goal, cost, traj, truncated, pq, node_dict, edge_dict, vehicle, road, cost_map, cursor)
+                    State.post_process(current, successor, goal, cost, traj, truncated, pq, node_dict, edge_dict, vehicle, road, cost_map, cursor, weights=weights)
     if goal.extend:
         return True, node_dict, edge_dict
     else:
         return False, node_dict, edge_dict
+    # return count + len(node_dict) + len(edge_dict)
