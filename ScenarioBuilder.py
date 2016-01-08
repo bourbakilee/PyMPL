@@ -3,12 +3,10 @@ import TrajectoryGeneration as TG
 from OnRoadPlanning import State, Astar
 import cv2
 from math import ceil, floor
-# import random
 import matplotlib.pyplot as plt
 from matplotlib.path import Path
 import matplotlib.patches as patches
 import sqlite3
-from scipy.optimize import minimize
 from queue import PriorityQueue
 
 
@@ -19,8 +17,8 @@ def senarios_1():
 
     # plot
     fig = plt.figure()
-    ax1 = fig.add_subplot(211)
-    ax2 = fig.add_subplot(212)
+    ax1 = fig.add_subplot(111)
+    # ax2 = fig.add_subplot(212)
 
     # road center line points
     p = (0.,0.,0.,0.,90.) # (p0~p3, sg)
@@ -86,7 +84,7 @@ def senarios_1():
     cost_map = cv2.filter2D(collision_map, -1, ws.cost_filter)
     cost_map += collision_map
     cost_map = np.where(cost_map>1., np.inf, cost_map)
-    cost_map = np.where(cost_map<1.e-16, 0., cost_map)
+    cost_map = np.where(cost_map<1.e-8, 0., cost_map)
     # np.savetxt('scenario_1/cost_grayscale_map.txt', cost_map, fmt='%1.6f', delimiter='\t')
 
     # plot
@@ -100,19 +98,19 @@ def senarios_1():
     goal_state = State(road=road, r_s=80., r_l=0., v=8.33)
     ax1.plot(goal_state.x, goal_state.y, 'rs')
 
+    # heuristic map
+    heuristic_map = heuristic_map_constructor(goal_state, cost_map)
+    
+    # ax1.imshow(heuristic_map, cmap=plt.cm.Reds, origin="lower",extent=(0.,ws.resolution*ws.row,0.,ws.resolution*ws.column))
 
-    # fun = lambda x: Astar(start_state, goal_state, road, cost_map, veh, cursor, weights=x)
-    # x0 = np.array([5., 10., 0.05, 0.2, 0.2, 0.2, 10., 0.5, 10., -2.])
-    # res = minimize(fun, x0)
-    # print(res.x)
 
     # weights: weights for (k, dk, v, a, a_c, l, env, j, t, s)
     weights = np.array([5., 10., 0.01, 10., 0.1, 0.1, 50., 5, 40., -3.])
-    res, state_dict, traj_dict = Astar(start_state, goal_state, road, cost_map, veh, cursor, weights=weights)
+    res, state_dict, traj_dict = Astar(start_state, goal_state, road, cost_map, veh, heuristic_map, cursor, weights=weights)
     print(res)
     print(len(state_dict))
     print(len(traj_dict))
-    print(goal_state.time, goal_state.length, goal_state.cost)
+    print(goal_state.time, goal_state.length, goal_state.cost, start_state.priority, goal_state.priority)
     for _ , traj in traj_dict.items():
         ax1.plot(traj[:,2], traj[:,3], color='navy', linewidth=0.3)
     state = goal_state
@@ -120,9 +118,9 @@ def senarios_1():
         traj = traj_dict[(state.parent, state)]
         state = state.parent
         ax1.plot(traj[:,2], traj[:,3], color='teal', linewidth=1.)
-        ax2.plot(traj[:,0], traj[:,5], color='black', linewidth=0.5)
+        # ax2.plot(traj[:,0], traj[:,5], color='black', linewidth=0.5)
 
-    
+
     # close database connection
     cursor.close()
     conn.close()

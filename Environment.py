@@ -1,6 +1,7 @@
 # 2015.11.16, LI Yunsheng
 
 from math import floor, ceil, sqrt
+from queue import PriorityQueue
 import cv2
 import numpy as np
 from scipy.interpolate import interp1d
@@ -92,6 +93,7 @@ class Vehicle():
         return centers
 
     # traj: array of points on trajectory - [(t,s,x,y,theta,k,dk,v,a)]
+    # return: points - [[x1,y1, x2,y2, x3,y3]]
     def covering_centers(self, traj):
         points = np.zeros((traj.shape[0], 6))
         sin_t = np.sin(traj[:,4])
@@ -478,14 +480,72 @@ class Workspace():
             return cost_maps
 
 
-    # cost-map search
-    # current - (x,y)
-    # goal - (xg, yg)
-    # map - 500 X 500 grayscale map
-    @staticmethod
-    def costmap_heuristic(current, goal, map):
-        heuristic = 0.
 
 
 
+class Grid():
+    """used to search on cost_map to construct heuristic_map
+    """
+    def __init__(self, i, j , cost=np.inf):
+        self.i = i
+        self.j = j
+        self.cost = cost 
+        self.extend = False
 
+    def __lt__(self, other):
+        return self.cost < other.cost 
+
+    def successors(self, grid_dict, size=500):
+        succs = []
+        for i in [-1,0,1]:
+            for j in [-1,0,1]:
+                if abs(i) + abs(j) != 0 and 0<=self.i+i<size and 0<=self.j+j<size:
+                    try:
+                        grid = grid_dict[(self.i+i,self.j+j)]
+                    except KeyError:
+                        grid = Grid(self.i+i,self.j+j)
+                        grid_dict[(self.i+i,self.j+j)] = grid 
+                    finally:
+                        succs.append(grid)
+        return succs 
+
+
+
+def heuristic_map_constructor(goal, cost_map, resolution=0.2):
+    """construct heuristic query map
+    goal - State, has x,y attributes
+    return type : matrix has same size as cost_map
+    """
+    g_i, g_j = floor(goal.y/resolution), floor(goal.x/resolution)
+    goal_grid = Grid(g_i, g_j, cost_map[g_i, g_j])
+    grid_dict = {(goal_grid.i, goal_grid.j):goal_grid}
+    pq = PriorityQueue()
+    pq.put(goal_grid)
+
+    heuristic_map = np.inf*np.ones(cost_map.shape)
+
+    while not pq.empty():
+        current = pq.get()
+        successors = current.successors(grid_dict)
+        for successor in successors:
+            successor.extend = True
+            cost = current.cost + resolution*(abs(current.i-successor.i)+abs(current.j-successor.j)) + cost_map[successor.i, successor.j]
+            if successor.cost > cost:
+                successor.cost = cost 
+                heuristic_map[successor.i, successor.j] = cost
+                pq.put(successor)
+
+    return heuristic_map
+
+
+def query_heuristic(current, heuricstic_map, vehicle = None, resolution = 0.2):
+    if vehicle is None:
+        vehicle = Vehicle()
+    traj = np.array([[current.time, current.length, current.x, current.y, current.theta, current.k, 0., current.v, current.a]])
+    points = vehicle.covering_centers(traj)
+    index = (points/resolution).astype(int)
+    try:
+        h = 1.5*heuristic_map[index[0,1], index[0,0]] + heuristic_map[index[0,3], index[0,2]] + 0.5*heuristic_map[index[0,5], heuristic_map[0,4]]
+    except:
+        h = np.inf
+    return h * 30.

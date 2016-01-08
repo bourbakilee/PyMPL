@@ -5,7 +5,7 @@ from queue import PriorityQueue
 
 class State:
     def __init__(self, time=np.inf, length=np.inf,road=None, r_i=None, r_j=None, r_s=None, r_l=None, \
-        x=0., y=0., theta=0., k=0., v=0., acc=0., cost=np.inf, goal = None):
+        x=0., y=0., theta=0., k=0., v=0., acc=0., cost=np.inf, vehicle=None, heuristic_map = None):
         if road is not None:
             if r_i is not None and r_j is not None:
                 self.r_i = r_i # int
@@ -41,7 +41,10 @@ class State:
         self.extend = False
         self.parent = None
         self.cost = cost
-        self.heuristic = 0. # h(goal)
+        if heuristic_map is not None:
+            self.heuristic = query_heuristic(self, heuristic_map, vehicle)
+        else:
+            self.heuristic = 0.
         self.priority = self.cost + self.heuristic
 
 
@@ -67,14 +70,14 @@ class State:
         return False
 
 
-    def update2(self, parent, cost, traj, road):
+    def update2(self, parent, cost, traj, road, heuristic_map):
         self.x, self.y, self.theta, self.k = traj[-1,2:6]
         self.r_s, self.r_l = road.xy2sl(self.x,self.y)[0:2,0]
         self.r_i, self.r_j = int(round(self.r_s/road.grid_length)), int(round(self.r_l/road.grid_width))
         self.v = traj[-1,7]
         self.a = traj[-1,8]
         self.q = np.array([self.x, self.y, self.theta, self.k])
-        # self.heuristic
+        self.heuristic = query_heuristic(self, heuristic_map)
         # return self.update(parent, cost, traj)
 
 
@@ -87,7 +90,7 @@ class State:
     # ref cost - parent node's cost
     # state_dict - {(i,j,k):state(i,j,v)}
     @staticmethod
-    def post_process(current, successor, goal, cost, traj, truncated, pq, state_dict, traj_dict, vehicle, road, costmap, cursor, weights=np.array([5., 10., 0.05, 0.2, 0.2, 0.2, 10., 0.5, 10., -2.])):
+    def post_process(current, successor, goal, cost, traj, truncated, pq, state_dict, traj_dict, vehicle, road, costmap, heuristic_map,cursor, weights=np.array([5., 10., 0.05, 0.2, 0.2, 0.2, 10., 0.5, 10., -2.])):
         if not truncated:
             if successor.update(current, cost, traj):
                 pq.put(successor)
@@ -95,7 +98,7 @@ class State:
                     state_dict[(successor.r_i, successor.r_j, int(round(successor.v/2)))] = successor
                 traj_dict[(current, successor)] = traj
         else:
-            successor.update2(current, cost, traj, road)
+            successor.update2(current, cost, traj, road, heuristic_map)
             i, j, k = successor.r_i, successor.r_j, int(round(successor.v/2))
             try:
                 state = state_dict[(i,j,k)]
@@ -125,7 +128,7 @@ class State:
 
     # {next_state}
     # state_dict
-    def successors(self, state_dict, road, goal, accs=[-4., -2., 0., 2.], v_offset=[-1., -0.5, 0., 0.5, 1.], times=[1., 2., 4.], \
+    def successors(self, state_dict, road, goal, vehicle, heuristic_map, accs=[-4., -2., 0., 2.], v_offset=[-1., -0.5, 0., 0.5, 1.], times=[1., 2., 4.], \
         p_lims=(0.2,0.15,20.+1.e-6,-1.e-6,2.1,-6.,6.)):
         # road is not None
         # goal state is not None
@@ -153,7 +156,7 @@ class State:
                         state = state_dict[(i,j,k)]
                     except KeyError:
                         if self.r_i < i < goal.r_i and abs(j) < road.grid_num_lateral//2 and p_lims[3] < v < p_lims[2]:
-                            state = State(road=road, r_i=i, r_j=j, v=v, acc=n1)
+                            state = State(road=road, r_i=i, r_j=j, v=v, acc=n1, heuristic_map=heuristic_map, vehicle=vehicle)
                         else:
                             state = None
                     finally:
@@ -175,22 +178,22 @@ def trajectory(start, goal, cursor):
 
 
 
-def Astar(start, goal, road, cost_map, vehicle, cursor, weights=np.array([5., 10., 0.05, 0.2, 0.2, 0.2, 10., 0.5, 10., -2.])):
+def Astar(start, goal, road, cost_map, vehicle, heuristic_map, cursor, weights=np.array([5., 10., 0.05, 0.2, 0.2, 0.2, 10., 0.5, 10., -2.])):
     # pq - priority queue of states waiting to be extended, multiprocessing
     # node_dict - {(i,j,k):state}
     # edge_dict - store trajectory, {(state1, state2):trajectory}
     # pq, node_dict, edge_dict are better defined outside, for multiprocessing
-    count = 0
+    # count = 0
     pq = PriorityQueue()
     pq.put(start)
     node_dict = {(start.r_i, start.r_j, int(round(start.v/2))):start, (goal.r_i, goal.r_j, int(round(goal.v/2))):goal}
     edge_dict = {}
     while not goal.extend and not pq.empty():
         current = pq.get()
-        successors = current.successors(state_dict=node_dict, road=road, goal=goal)
+        successors = current.successors(state_dict=node_dict, road=road, goal=goal, vehicle=vehicle, heuristic_map=heuristic_map)
         current.extend = True
         for successor in successors:
-            count += 1
+            # count += 1
             traj = trajectory(current, successor, cursor)
             if traj is not None:
                 if successor == goal:
@@ -199,7 +202,7 @@ def Astar(start, goal, road, cost_map, vehicle, cursor, weights=np.array([5., 10
                 else:
                     cost, traj, truncated = TG.eval_trajectory(traj, cost_map, vehicle=vehicle, road=road, weights=weights)
                 if not np.isinf(cost) and traj is not None:
-                    State.post_process(current, successor, goal, cost, traj, truncated, pq, node_dict, edge_dict, vehicle, road, cost_map, cursor, weights=weights)
+                    State.post_process(current, successor, goal, cost, traj, truncated, pq, node_dict, edge_dict, vehicle, road, cost_map, heuristic_map, cursor, weights=weights)
     if goal.extend:
         return True, node_dict, edge_dict
     else:
