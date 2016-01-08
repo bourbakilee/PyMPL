@@ -538,14 +538,14 @@ def heuristic_map_constructor(goal, cost_map, resolution=0.2):
     return heuristic_map
 
 
-def query_heuristic(current, heuricstic_map, vehicle = None, resolution = 0.2):
+def query_heuristic(current, heuristic_map, vehicle = None, resolution = 0.2):
     if vehicle is None:
         vehicle = Vehicle()
     traj = np.array([[current.time, current.length, current.x, current.y, current.theta, current.k, 0., current.v, current.a]])
     points = vehicle.covering_centers(traj)
     index = (points/resolution).astype(int)
     try:
-        h = 1.5*heuristic_map[index[0,1], index[0,0]] + heuristic_map[index[0,3], index[0,2]] + 0.5*heuristic_map[index[0,5], heuristic_map[0,4]]
-    except:
-        h = np.inf
-    return h * 30.
+        h = 1.5*heuristic_map[index[0,1], index[0,0]] + heuristic_map[index[0,3], index[0,2]] + 0.5*heuristic_map[index[0,5], index[0,4]]
+    except Exception as e:
+        h = 0.
+    return h*4

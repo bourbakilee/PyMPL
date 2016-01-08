@@ -91,26 +91,24 @@ def senarios_1():
     costmap_plot = np.where( cost_map >1., 1., cost_map)
     ax1.imshow(costmap_plot, cmap=plt.cm.Reds, origin="lower",extent=(0.,ws.resolution*ws.row,0.,ws.resolution*ws.column))
     ax1.plot(center_line[:,1], center_line[:,2], color='maroon', linestyle='--', linewidth=1.5)
-
-
-    start_state = State(time=0., length=0., road=road, r_s=5., r_l=0., v=8.33,cost=0.)
-    ax1.plot(start_state.x, start_state.y, 'rs')
+    
+    # heuristic map
     goal_state = State(road=road, r_s=80., r_l=0., v=8.33)
     ax1.plot(goal_state.x, goal_state.y, 'rs')
 
-    # heuristic map
     heuristic_map = heuristic_map_constructor(goal_state, cost_map)
-    
-    # ax1.imshow(heuristic_map, cmap=plt.cm.Reds, origin="lower",extent=(0.,ws.resolution*ws.row,0.,ws.resolution*ws.column))
 
+    start_state = State(time=0., length=0., road=road, r_s=5., r_l=0., v=8.33,cost=0., heuristic_map=heuristic_map)
+    ax1.plot(start_state.x, start_state.y, 'rs')
+    # # ax1.imshow(heuristic_map, cmap=plt.cm.Reds, origin="lower",extent=(0.,ws.resolution*ws.row,0.,ws.resolution*ws.column))
 
-    # weights: weights for (k, dk, v, a, a_c, l, env, j, t, s)
+    # # weights: weights for (k, dk, v, a, a_c, l, env, j, t, s)
     weights = np.array([5., 10., 0.01, 10., 0.1, 0.1, 50., 5, 40., -3.])
     res, state_dict, traj_dict = Astar(start_state, goal_state, road, cost_map, veh, heuristic_map, cursor, weights=weights)
     print(res)
     print(len(state_dict))
     print(len(traj_dict))
-    print(goal_state.time, goal_state.length, goal_state.cost, start_state.priority, goal_state.priority)
+    print(goal_state.time, goal_state.length, goal_state.cost, start_state.heuristic, goal_state.heuristic)
     for _ , traj in traj_dict.items():
         ax1.plot(traj[:,2], traj[:,3], color='navy', linewidth=0.3)
     state = goal_state
@@ -128,7 +126,7 @@ def senarios_1():
     #
     # plt.legend()
     plt.axis('equal')
-    # plt.savefig('scenario_1/astar_2.png', dpi=600)
+    plt.savefig('scenario_1/astar_3.png', dpi=600)
     plt.show()
 
 
