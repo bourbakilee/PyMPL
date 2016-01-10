@@ -17,8 +17,8 @@ def senarios_1():
 
     # plot
     fig = plt.figure()
-    ax1 = fig.add_subplot(111)
-    # ax2 = fig.add_subplot(212)
+    ax1 = fig.add_subplot(211)
+    ax2 = fig.add_subplot(212)
 
     # road center line points
     p = (0.,0.,0.,0.,90.) # (p0~p3, sg)
@@ -100,10 +100,10 @@ def senarios_1():
 
     start_state = State(time=0., length=0., road=road, r_s=5., r_l=0., v=8.33,cost=0., heuristic_map=heuristic_map)
     ax1.plot(start_state.x, start_state.y, 'rs')
-    # # ax1.imshow(heuristic_map, cmap=plt.cm.Reds, origin="lower",extent=(0.,ws.resolution*ws.row,0.,ws.resolution*ws.column))
+    # ax1.imshow(heuristic_map, cmap=plt.cm.Reds, origin="lower",extent=(0.,ws.resolution*ws.row,0.,ws.resolution*ws.column))
 
     # # weights: weights for (k, dk, v, a, a_c, l, env, j, t, s)
-    weights = np.array([5., 10., 0.01, 10., 0.1, 0.1, 50., 5, 40., -3.])
+    weights = np.array([5., 10., -0.1, 10., 0.1, 0.1, 50., 5, 40., -3.])
     res, state_dict, traj_dict = Astar(start_state, goal_state, road, cost_map, veh, heuristic_map, cursor, weights=weights)
     print(res)
     print(len(state_dict))
@@ -116,7 +116,7 @@ def senarios_1():
         traj = traj_dict[(state.parent, state)]
         state = state.parent
         ax1.plot(traj[:,2], traj[:,3], color='teal', linewidth=1.)
-        # ax2.plot(traj[:,0], traj[:,5], color='black', linewidth=0.5)
+        ax2.plot(traj[:,0], traj[:,7], color='black', linewidth=0.5)
 
 
     # close database connection
@@ -126,7 +126,7 @@ def senarios_1():
     #
     # plt.legend()
     plt.axis('equal')
-    plt.savefig('scenario_1/astar_3.png', dpi=600)
+    # plt.savefig('scenario_1/astar_3.png', dpi=600)
     plt.show()
 
 

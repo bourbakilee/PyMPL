@@ -324,8 +324,8 @@ def eval_trajectory(trajectory, costmap, vehicle=Env.Vehicle(), road=None, resol
     cost_matrix = np.zeros((trajectory.shape[0],7)) # k, dk, v, a, a_c, off_set(x,y), env(t,x,y,theta)
     cost_matrix[:,0] = weights[0] * np.abs(trajectory[:,5]) # k
     cost_matrix[:,1] = weights[1] * np.abs(trajectory[:,6]) # dk
-    cost_matrix[:,2] = weights[2] * np.abs(trajectory[:,7]) # v
-    cost_matrix[:,3] = weights[3] * np.abs(trajectory[:,8]) # a
+    cost_matrix[:,2] = weights[2] * trajectory[:,7] # v
+    cost_matrix[:,3] = weights[3] * trajectory[:,8]**2 # a
     cost_matrix[:,4] = weights[4] * np.abs(trajectory[:,5]) * trajectory[:,7]**2 # a_c
     if road is not None:
         # false

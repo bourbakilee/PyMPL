@@ -548,4 +548,4 @@ def query_heuristic(current, heuristic_map, vehicle = None, resolution = 0.2):
         h = 1.5*heuristic_map[index[0,1], index[0,0]] + heuristic_map[index[0,3], index[0,2]] + 0.5*heuristic_map[index[0,5], index[0,4]]
     except Exception as e:
         h = 0.
-    return h*4
+    return h*5
