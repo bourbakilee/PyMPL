@@ -68,3 +68,6 @@ target/
 
 # plain txt
 *.txt
+
+# img
+*.png

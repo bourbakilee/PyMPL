@@ -4,7 +4,7 @@ from queue import PriorityQueue
 
 
 class State:
-    def __init__(self, time=np.inf, length=np.inf,road=None, r_i=None, r_j=None, r_s=None, r_l=None, \
+    def __init__(self, time=np.inf, length=np.inf, road=None, r_i=None, r_j=None, r_s=None, r_l=None, \
         x=0., y=0., theta=0., k=0., v=0., acc=0., cost=np.inf, vehicle=None, heuristic_map = None):
         if road is not None:
             if r_i is not None and r_j is not None:
@@ -56,13 +56,15 @@ class State:
 
     # update if traj successfully connect from parent to self
     # cost must not be inf
-    def update(self, parent, cost, traj):
+    def update(self, parent, cost, traj, traj_dict):
         if not parent.extend:
             parent.extend = True
         if self.cost > cost + parent.cost:
             self.time = traj[-1,0]
             self.length = traj[-1,1]
             self.reach = True
+            if self.parent is not None:
+                del traj_dict[(self.parent, self)]
             self.parent = parent
             self.cost = cost + parent.cost
             self.priority = self.heuristic + cost
@@ -70,15 +72,10 @@ class State:
         return False
 
 
-    def update2(self, parent, cost, traj, road, heuristic_map):
-        self.x, self.y, self.theta, self.k = traj[-1,2:6]
-        self.r_s, self.r_l = road.xy2sl(self.x,self.y)[0:2,0]
-        self.r_i, self.r_j = int(round(self.r_s/road.grid_length)), int(round(self.r_l/road.grid_width))
-        self.v = traj[-1,7]
-        self.a = traj[-1,8]
-        self.q = np.array([self.x, self.y, self.theta, self.k])
-        self.heuristic = query_heuristic(self, heuristic_map)
-        # return self.update(parent, cost, traj)
+    @classmethod
+    def update2(cls, traj, road, heuristic_map):
+        return cls(road=road, x=traj[-1,2], y=traj[-1,3], theta=traj[-1,4], k=traj[-1,5], v=traj[-1,7], acc=traj[-1,8], heuristic_map=heuristic_map)
+
 
 
     # @staticmethod
@@ -92,13 +89,13 @@ class State:
     @staticmethod
     def post_process(current, successor, goal, cost, traj, truncated, pq, state_dict, traj_dict, vehicle, road, costmap, heuristic_map,cursor, weights=np.array([5., 10., 0.05, 0.2, 0.2, 0.2, 10., 0.5, 10., -2.])):
         if not truncated:
-            if successor.update(current, cost, traj):
+            if successor.update(current, cost, traj, traj_dict):
                 pq.put(successor)
                 if successor != goal:
                     state_dict[(successor.r_i, successor.r_j, int(round(successor.v/2)))] = successor
                 traj_dict[(current, successor)] = traj
         else:
-            successor.update2(current, cost, traj, road, heuristic_map)
+            successor = State.update2(traj, road, heuristic_map)
             i, j, k = successor.r_i, successor.r_j, int(round(successor.v/2))
             try:
                 state = state_dict[(i,j,k)]
@@ -118,12 +115,12 @@ class State:
                 state_dict[(i,j,k)] = successor
             finally:
                 if successor is not None:
-                    if successor.update(current, cost, traj):
+                    if successor.update(current, cost, traj, traj_dict):
                         pq.put(successor)
                         traj_dict[(current, successor)] = traj
 
-        
-        
+
+
 
 
     # {next_state}
