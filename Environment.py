@@ -223,9 +223,10 @@ class Workspace():
         #
         # self.disk = self.disk_filter()
         self.collision_filter = self.disk_filter(r=vehicle.covering_disk_radius())
-        cost_filter = self.disk_filter(1.5)
-        cost_filter *= fspecial_gauss(cost_filter.shape[0])
-        self.cost_filter = cost_filter/cost_filter.sum() # consider using gaussianblur filter method
+        # cost_filter = self.disk_filter(1.5)
+        # cost_filter *= fspecial_gauss(cost_filter.shape[0])
+        # self.cost_filter = cost_filter/cost_filter.sum() # consider using gaussianblur filter method
+        self.cost_filter = self.disk_filter(1.)
         #
         self.time = 0. if self.moving_obsts is not None else None
         self.delta_t = 0.05

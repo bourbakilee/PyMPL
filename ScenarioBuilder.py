@@ -109,6 +109,11 @@ def senarios_1():
     print(len(state_dict))
     print(len(traj_dict))
     print(goal_state.time, goal_state.length, goal_state.cost, start_state.heuristic, goal_state.heuristic)
+    # True
+    # 168
+    # 175
+    # 8.78814826688 76.409797813 2701.06684421 1559.33663366 0.0
+
     for _ , traj in traj_dict.items():
         ax1.plot(traj[:,2], traj[:,3], color='navy', linewidth=0.3)
     state = goal_state

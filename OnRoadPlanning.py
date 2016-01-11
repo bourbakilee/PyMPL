@@ -129,7 +129,7 @@ class State:
     # {next_state}
     # state_dict
     def successors(self, state_dict, road, goal, vehicle, heuristic_map, accs=[-4., -2., 0., 2.], v_offset=[-1., -0.5, 0., 0.5, 1.], times=[1., 2., 4.], \
-        p_lims=(0.2,0.15,20.+1.e-6,-1.e-6,2.1,-6.,6.)):
+        p_lims=(0.2,0.15,20.,0.,2.,-6.,6.)):
         # road is not None
         # goal state is not None
         # accs = [-2., -1., 0., 1.]
@@ -137,13 +137,12 @@ class State:
         # times = [1., 2., 4. , 7.]
         # p_lims - { k_m, dk_m, v_max, v_min, a_max, a_min, ac_m } = (0.2,0.1,20.,0.,2.,-6.,10.)
         outs = []
-        # if (self.v + goal.v)/2*5 < goal.r_s - self.r_s:
-        # if random.random()<0.1:
-        outs.append(goal)
+        if (self.v + goal.v)/2*5 > goal.r_s - self.r_s:
+            outs.append(goal)
         for n1 in accs:
             for n2 in v_offset:
                 for n3 in times:
-                    v = self.v + n1*n3
+                    v = min(max(self.v + n1*n3, p_lims[3]), p_lims[2])
                     l = self.r_l + n2*n3
                     s = self.r_s + (self.v+v)/2*n3
                     # x = self.x + s*np.cos(self.theta) - l*np.sin(self.theta)
@@ -155,7 +154,7 @@ class State:
                     try:
                         state = state_dict[(i,j,k)]
                     except KeyError:
-                        if self.r_i < i < goal.r_i and abs(j) < road.grid_num_lateral//2 and p_lims[3] < v < p_lims[2]:
+                        if self.r_i < i < goal.r_i and abs(j) < road.grid_num_lateral//2: # and p_lims[3] < v < p_lims[2]:
                             state = State(road=road, r_i=i, r_j=j, v=v, acc=n1, heuristic_map=heuristic_map, vehicle=vehicle)
                         else:
                             state = None
