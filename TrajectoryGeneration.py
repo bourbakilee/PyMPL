@@ -365,7 +365,7 @@ def calc_trajectory_reverse(u, p, r=None, s=None, path=None, q0=None, ref_time=0
 # traj: array of points on trajectory - [(t,s,x,y,theta,k,dk,v,a)]
 def query_cost(traj, costmap, vehicle=None, resolution=0.2):
     if vehicle is None:
-        vehicle = Vehicle()
+        vehicle = Env.Vehicle()
     points = vehicle.covering_centers(traj)
     index = (points/resolution).astype(int)
     cost = np.zeros((traj.shape[0],1))

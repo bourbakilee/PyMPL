@@ -372,7 +372,7 @@ class Workspace():
         return self.grids_encircled_by_lines(grids_list)
 
 
-# bug: vertical line
+    # bug: vertical line
     def grids_of_lanes(self, road):
         # return: list of matrix map
         # if road is None:
