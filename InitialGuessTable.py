@@ -113,13 +113,24 @@ def test():
     fail = cursor.fetchone()[0]
     cursor.execute('select count(*) from InitialGuessTable')
     records = cursor.fetchone()[0]
-    print(fail,records,fail/records)
+    print(fail,records,records-fail,fail/records)
     cursor.close()
     conn.close()
 
 
+def test_select():
+    bd_con = (3.9/40, 7.1*3.0625+1, 2.1*6.25, 3.9*3.141592654/16, 4.1/40)
+    conn = sqlite3.connect('InitialGuessTable.db')
+    cursor = conn.cursor()
+    initial_guess = TG.select_init_val(cursor, bd_con)
+    print(initial_guess)
+
+    initial_guess2 = (0.0145, 0.0037, 23.5967)
+    pp = TG.optimize(bd_con, initial_guess2)
+    print(pp)
+
 if __name__ == '__main__':
-    db_create()
+    # db_create()
     # Build_InitialGuessTable()
-    # test()
+    test()
     # DelInvalidItems()

@@ -5,6 +5,7 @@ import numpy as np
 from numpy import matlib
 from math import ceil, floor
 from scipy.interpolate import interp1d
+from scipy.optimize import fsolve
 import Environment as Env # Environment module is not used here, because the trajectory evaluation procedure is just a trial and not include environment factors
 # import sqlite3 # donnot import sqlite3, just add a parameter of database connection to the functions which needs
 
@@ -115,6 +116,7 @@ def optimize(bd_con, init_val=None):
     init_val[0]= max(min(init_val[0],0.2),-0.2)
     init_val[1]= max(min(init_val[1],0.2),-0.2)
     init_val[2]= max(min(init_val[2],1000.),1.)
+    # print('IterTimes: {0},P = {1}'.format(0, (init_val[0], init_val[1], init_val[2])))
     q_g = matlib.matrix([[bd_con[1]], [bd_con[2]], [bd_con[3]]])
     p = (bd_con[0], init_val[0], init_val[1], bd_con[4], init_val[2])
     r = (__a(p), __b(p), __c(p), __d(p))
@@ -129,6 +131,7 @@ def optimize(bd_con, init_val=None):
         # print('J={0}'.format(J))
         theta_p = __theta(p[4], r)
         x_p, y_p = __xy_calc(p[4], r)
+        # print('q = {0}'.format((x_p,y_p,theta_p)))
         dq = q_g -  matlib.matrix([[x_p],[y_p],[theta_p]])
         pp += J**-1*dq
         # revise the parameters
@@ -152,6 +155,7 @@ def optimize(bd_con, init_val=None):
         # print('p={0}'.format(p))
         r = (__a(p), __b(p), __c(p), __d(p))
         # print('r={0}'.format(r))
+        # print('IterTimes: {0},P = {1}'.format(times, (p[1],p[2],p[4])))
     # print('IterTimes: {0}'.format(times))
     if times > 100:
         # pp = matlib.matrix([[-1.],[-1.],[-1.]])
@@ -192,6 +196,8 @@ def calc_path(cursor, q0, q1):
     theta_r = np.mod(q1[2]-q0[2], 2*np.pi) # 
     if theta_r > np.pi:
         theta_r -= 2*np.pi
+    # elif theta_r < -np.pi:
+    #     theta_r += 2*np.pi
     bd_con = (q0[3], x_r, y_r, theta_r, q1[3])
     init_val = select_init_val(cursor, bd_con) #
     # print(init_val)
@@ -199,7 +205,28 @@ def calc_path(cursor, q0, q1):
     if pp is None or pp[2]<0:
         p, r = None, None
     else:
-        p = (q0[3], pp[0], pp[1], q1[2], pp[2])
+        p = (q0[3], pp[0], pp[1], q1[3], pp[2])
+        r = (__a(p), __b(p), __c(p), __d(p))
+    return p, r
+
+
+def calc_path_no_init_val(q0, q1):
+    # q0, q1: initial and goal configuration - (x,y,theta,k)
+    # return: p(p0~p3,sg), r(a,b,c,d)
+    cc = np.cos(q0[2])
+    ss = np.sin(q0[2])
+    x_r = (q1[0] - q0[0])*cc + (q1[1] - q0[1])*ss
+    y_r = -(q1[0] - q0[0])*ss + (q1[1] - q0[1])*cc
+    theta_r = np.mod(q1[2]-q0[2], 2*np.pi) # 
+    if theta_r > np.pi:
+        theta_r -= 2*np.pi
+    bd_con = (q0[3], x_r, y_r, theta_r, q1[3])
+    pp = optimize(bd_con) #
+    print(pp)
+    if pp is None or pp[2]<0:
+        p, r = None, None
+    else:
+        p = (q0[3], pp[0], pp[1], q1[3], pp[2])
         r = (__a(p), __b(p), __c(p), __d(p))
     return p, r
 
@@ -207,12 +234,17 @@ def calc_path(cursor, q0, q1):
 def calc_velocity(v0, a0, vg, sg):
     # v(t) = q0 + q1*t + q2*t**2
     # return: q0~q2, tg
-    u0, u1, u2, tg = None, None, None, None
+    u0, u1, u2, tg = v0, a0, None, None
     delta = (2*v0+vg)**2 + 6*a0*sg
-    if delta >= 0:
-        u0 = v0
-        u1 = a0
-        tg = 3*sg/(2*v0+vg) if np.abs(a0)<1.e-6 else (np.sqrt(delta)-2*v0-vg)/a0
+    if delta >= -1.e-4:
+        if abs(a0) > 1.e-3:
+            if sg>0.:
+                tg = (np.sqrt(max(0.,delta)) - 2*v0 -vg)/a0
+            elif sg<0.:
+                tg = (-np.sqrt(max(0.,delta)) - 2*v0 -vg)/a0
+        else:
+            tg = 3*sg/(2*v0+vg)
+    if tg is not None:
         u2 = (vg - v0 - a0*tg)/tg**2
     return (u0,u1,u2,tg)
 
@@ -232,7 +264,7 @@ def spiral3_calc(p, r=None, s=None, q=(0.,0.,0.), ref_delta_s=0.1):
     delta_s = s / N
     line[:,0] = np.linspace(0, s ,N+1) # s
     line[:,4] = __k(line[:,0], r) # k
-    line[:,3] = np.mod(q[2] + __theta(line[:,0], r), 2*np.pi) # theta
+    line[:,3] = np.mod(q[2] + __theta(line[:,0], r), 2*np.pi) # theta q[2] + __theta(line[:,0], r)
     cos_t = np.cos(line[:,3])
     sin_t = np.sin(line[:,3])
     d_x = (cos_t[0:N] + cos_t[1:N+1])/2 * delta_s
@@ -289,6 +321,44 @@ def calc_trajectory(u, p, r=None, s=None, path=None, q0=None, ref_time=0., ref_l
     trajectory[:,0] += ref_time
     trajectory[:,1] += ref_length
     return trajectory
+
+
+def calc_trajectory_reverse(u, p, r=None, s=None, path=None, q0=None, ref_time=0., ref_length=0.):
+    # u: (u0~u2, tg)
+    # p: (p0~p3, sg)
+    # r: (a,b,c,d)
+    # s: path length
+    # path: [(s,x,y,theta,k)]
+    # q0: (x0,y0,theta0)
+    # return: array of points on trajectory - [(t,s,x,y,theta,k,dk,v,a)]
+    u0, u1, u2, tg = u
+    if r is None:
+        r = (__a(p), __b(p), __c(p), __d(p))
+    # p0, p1, p2, p3, sg = p
+    a, b, c, d = r
+    if s is None:
+        s = p[4]
+    #
+    if path is None:
+        path = spiral3_calc(p, r, s, q0) # NX5 array
+    trajectory = np.zeros((path.shape[0], 9)) # NX10 array
+    trajectory[:,1:6] = path # s,x,y,theta,k
+
+    trajectory[-1,0] = tg
+    trajectory[1:-1, 0] = np.array([ fsolve(lambda t: u0*t+u1*t**2/2.+u2*t**3/3.+ss, 2*ss/u0)[0] for ss in trajectory[1:-1, 1]])# t
+    
+
+    #
+    trajectory[:,7] = np.array([u0+u1*t+u2*t**2 for t in trajectory[:,0]]) # v
+    trajectory[:,8] = np.array([u1+2*u2*t for t in trajectory[:,0]]) # a
+    # trajectory[:,9] = 2*u2
+    # dk/dt
+    trajectory[:,6] = np.array([b+2*c*ss+3*d*ss**2 for ss in trajectory[:,1]])*trajectory[:,7]
+    # revise the absolute time and length
+    trajectory[:,0] += ref_time
+    trajectory[:,1] += ref_length
+    return trajectory
+
 
 
 # query cost from costmap
@@ -364,7 +434,7 @@ def eval_trajectory(trajectory, costmap, vehicle=Env.Vehicle(), road=None, resol
 
 
 
-if __name__ == '__main__':
+# if __name__ == '__main__':
     # test
     # p0, p1, p2, p3, sg = 0.01, 0.0070893846923453458, 0.0056488100020089405, -0.01, 109.61234579137816
     # p = (p0,p1,p2,p3,sg)
@@ -379,21 +449,21 @@ if __name__ == '__main__':
     # print(x,y)
     # print(J)
     # print(J**-1*(matlib.matrix([[100.-x],[40.-y],[np.pi/6-t]])))
-    bd_con = (0.01, 100., 40., np.pi/6, -0.01)
-    init_val = (0.01/3, -0.01/3, np.sqrt(100.**2+40.**2)+5*np.pi/6)
-    pp = optimize(bd_con, init_val)
-    # print('pp={0}'.format(pp))
-    p = (bd_con[0], pp[0], pp[1], bd_con[4], pp[2])
-    r = (__a(p), __b(p), __c(p), __d(p))
-    # x_p, y_p = __xy_calc(p[4], r)
-    # theta_p = __theta(p[4], r)
-    # print('x={0}, y={1}, theta={2}'.format(x_p,y_p,theta_p))
-    # print('err: dx={0}, dy={1}, dtheta={2}'.format(bd_con[1]-x_p, bd_con[2]-y_p, bd_con[3]-theta_p))
-    path = spiral3_calc(p,r)
-    # print(path)
-    u = calc_velocity(5.,0.2,10.,p[4])
-    # print(u)
-    trajectory = calc_trajectory(u,p,r,path=path)
-    print(trajectory[:,0], trajectory[:,7])
-    cost = eval_trajectory(trajectory)
-    print(cost)
+    # bd_con = (0.01, 100., 40., np.pi/6, -0.01)
+    # init_val = (0.01/3, -0.01/3, np.sqrt(100.**2+40.**2)+5*np.pi/6)
+    # pp = optimize(bd_con, init_val)
+    # # print('pp={0}'.format(pp))
+    # p = (bd_con[0], pp[0], pp[1], bd_con[4], pp[2])
+    # r = (__a(p), __b(p), __c(p), __d(p))
+    # # x_p, y_p = __xy_calc(p[4], r)
+    # # theta_p = __theta(p[4], r)
+    # # print('x={0}, y={1}, theta={2}'.format(x_p,y_p,theta_p))
+    # # print('err: dx={0}, dy={1}, dtheta={2}'.format(bd_con[1]-x_p, bd_con[2]-y_p, bd_con[3]-theta_p))
+    # path = spiral3_calc(p,r)
+    # # print(path)
+    # u = calc_velocity(5.,0.2,10.,p[4])
+    # # print(u)
+    # trajectory = calc_trajectory(u,p,r,path=path)
+    # print(trajectory[:,0], trajectory[:,7])
+    # cost = eval_trajectory(trajectory)
+    # print(cost)

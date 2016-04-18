@@ -19,12 +19,14 @@ def senarios_1():
 
     # plot
     fig = plt.figure()
-    ax1 = fig.add_subplot(111, projection='3d')
+    # ax1 = fig.add_subplot(111, projection='3d')
+    ax1 = fig.add_subplot(111)
     # ax2 = fig.add_subplot(212)
 
     # road center line points
     p = (0.,0.,0.,0.,90.) # (p0~p3, sg)
     center_line = TG.spiral3_calc(p, q=(5.,50.,0.))
+    # np.savetxt('scenario_1/road_center_line.txt', center_line, delimiter='\t')
     # print(center_line)
 
     # road
@@ -87,25 +89,30 @@ def senarios_1():
     cost_map += collision_map
     cost_map = np.where(cost_map>1., np.inf, cost_map)
     cost_map = np.where(cost_map<1.e-8, 0., cost_map)
-    # np.savetxt('scenario_1/cost_grayscale_map.txt', cost_map, fmt='%1.6f', delimiter='\t')
+    costmap_save = np.where( cost_map >1., -1., cost_map)
+    # np.savetxt('scenario_1/cost_map.txt', costmap_save, delimiter='\t')
 
     # plot
     costmap_plot = np.where( cost_map >1., 1., cost_map)
-    # ax1.imshow(costmap_plot, cmap=plt.cm.Reds, origin="lower",extent=(0.,ws.resolution*ws.row,0.,ws.resolution*ws.column))
-    ax1.plot(center_line[:,1], center_line[:,2], color='maroon', linestyle='--', linewidth=1.5)
+    ax1.imshow(costmap_plot, cmap=plt.cm.Reds, origin="lower",extent=(0.,ws.resolution*ws.row,0.,ws.resolution*ws.column))
+    ax1.plot(center_line[:,1], center_line[:,2], color='maroon', linestyle='--', linewidth=1.)
     
     # heuristic map
     goal_state = State(road=road, r_s=80., r_l=0., v=8.33)
-    ax1.scatter(goal_state.x, goal_state.y, c='r')
+    # ax1.scatter(goal_state.x, goal_state.y, c='r')
+    ax1.plot(goal_state.x, goal_state.y, 'rs')
 
     heuristic_map = heuristic_map_constructor(goal_state, cost_map)
+    hm_save = np.where(heuristic_map > np.finfo('d').max, -1., heuristic_map)
+    # np.savetxt('scenario_1/heuristic_map.txt', hm_save, delimiter='\t')
 
     start_state = State(time=0., length=0., road=road, r_s=5., r_l=0., v=8.33,cost=0., heuristic_map=heuristic_map)
-    ax1.scatter(start_state.x, start_state.y, c='r')
+    # ax1.scatter(start_state.x, start_state.y, c='r')
+    ax1.plot(start_state.x, start_state.y, 'rs')
     # ax1.imshow(heuristic_map, cmap=plt.cm.Reds, origin="lower",extent=(0.,ws.resolution*ws.row,0.,ws.resolution*ws.column))
 
     # # weights: weights for (k, dk, v, a, a_c, l, env, j, t, s)
-    weights = np.array([5., 10., -0.1, 10., 0.1, 0.1, 50., 5, 40., -3.])
+    weights = np.array([5., 10., -0.1, 10., 0.1, 0.1, 50., 5, 40., -4.])
 
     starttime = datetime.datetime.now()
     res, state_dict, traj_dict = Astar(start_state, goal_state, road, cost_map, veh, heuristic_map, cursor, weights=weights)
@@ -122,12 +129,18 @@ def senarios_1():
     # 8.78814826688 76.409797813 2701.06684421 1559.33663366 0.0
 
     for _ , traj in traj_dict.items():
-        ax1.plot(traj[:,2], traj[:,3], traj[:,0], color='navy', linewidth=0.3)
+        # ax1.plot(traj[:,2], traj[:,3], traj[:,0], color='navy', linewidth=0.3)
+        ax1.plot(traj[:,2], traj[:,3], color='navy', linewidth=0.5)
+    for _, state in state_dict.items():
+        if state != start_state and state != goal_state:
+            ax1.plot(state.x, state.y, 'go')
+            # ax1.text(state.x, state.y,'{0:.2f}'.format(state.cost))
     state = goal_state
     while state.parent is not None:
         traj = traj_dict[(state.parent, state)]
         state = state.parent
-        ax1.plot(traj[:,2], traj[:,3], traj[:,0], color='teal', linewidth=1.)
+        # ax1.plot(traj[:,2], traj[:,3], traj[:,0], color='teal', linewidth=1.)
+        ax1.plot(traj[:,2], traj[:,3], color='teal', linewidth=1.)
         # ax2.plot(traj[:,0], traj[:,7], color='black', linewidth=0.5)
 
 
@@ -425,7 +438,7 @@ def extend_plot():
 
 
 if __name__ == '__main__':
-    # env_plot()
+    env_plot()
     # costmap_plot()
     # extend_plot()
-    senarios_1()
+    # senarios_1()
