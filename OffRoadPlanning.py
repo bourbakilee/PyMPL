@@ -1,7 +1,8 @@
-from Environment import *
+import Environment as Env
 import TrajectoryGeneration as TG
 from queue import PriorityQueue
 import numpy as np 
+from scipy.interpolate import interp1d
 import sqlite3
 import matplotlib.pyplot as plt 
 from matplotlib.path import Path
@@ -314,8 +315,51 @@ def test_load_motion_primitives():
     plt.show()
 
 
+def query_heuristic(current, heuristic_map = np.zeros((1,500,500)), static = True, vehicle = None, resolution = 0.2, time_resolution = 0.1):
+    """
+    current - State (OffRoad)
+    """
+    if vehicle is None:
+        vehicle = Env.Vehicle()
+    traj = np.array([[current.time, current.length, current.state[0], current.state[1], current.state[2], 0., 0., current.state[3], 0.]])
+    points = vehicle.covering_centers(traj)
+    index = (points/resolution).astype(int)
+
+    if static:
+        if len(heuristic_map.shape) == 2:
+            hm = heuristic_map
+        else:
+            hm = heuristic_map[0,:,:]
+        try:
+            h = 1.5*hm[index[0,1], index[0,0]] + hm[index[0,3], index[0,2]] + 0.5*hm[index[0,5], index[0,4]]
+        except Exception as e:
+            h = 1.e10
+        return h*8
+    else:
+        from math import floor
+        t_i = floor(current.time / time_resolution)
+        if 0 <= t_i < heuristic_map.shape[0]:
+            hm1 = heuristic_map[t_i,:,:]
+            hm2 = heuristic_map[t_i+1,:,:]
+            try:
+                h1 = 1.5*hm1[index[0,1], index[0,0]] + hm1[index[0,3], index[0,2]] + 0.5*hm1[index[0,5], index[0,4]]
+                h2 = 1.5*hm2[index[0,1], index[0,0]] + hm2[index[0,3], index[0,2]] + 0.5*hm2[index[0,5], index[0,4]]
+                h = 10*(((t_i+1)*0.1-current.time)*h1 + (current.time-t_i*0.1)*h1)
+            except Exception as e:
+                h = 1.e10
+        elif t_i == heuristic_map.shape[0]:
+            hm = heuristic_map[t_i,:,:]
+            try:
+                h = 1.5*hm[index[0,1], index[0,0]] + hm[index[0,3], index[0,2]] + 0.5*hm[index[0,5], index[0,4]]
+            except Exception as e:
+                h = 1.e10
+        else:
+            h = 1.e-8
+        return h*8
+
+
 class State:
-    def __init__(self, index=None, state=None, time=np.inf, length=np.inf, cost=np.inf, heuristic_map=None, vehicle=None):
+    def __init__(self, index=None, state=None, time=0., length=0., cost=np.inf, heuristic_map=None, vehicle=None):
         if index is not None and len(index)==4:
             i, j, k, l = index
             x, y, theta, v = i*1., j*1., np.mod(k*np.pi/16., 2*np.pi), l*1.
@@ -331,7 +375,7 @@ class State:
         self.time, self.length = time, length
         self.cost = cost
         if heuristic_map is not None:
-            self.heuristic = 0. #query_heuristic(self, heuristic_map, vehicle)
+            self.heuristic = query_heuristic(self, heuristic_map=heuristic_map, vehicle=vehicle)
         else:
             self.heuristic = 0.
         self.priority = self.cost + self.heuristic
