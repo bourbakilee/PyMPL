@@ -5,7 +5,7 @@ from queue import PriorityQueue
 
 class State:
     def __init__(self, time=np.inf, length=np.inf, road=None, r_i=None, r_j=None, r_s=None, r_l=None, \
-        x=0., y=0., theta=0., k=0., v=0., acc=0., o_x=None, o_y=None, o_theta=None, time_i=np.inf, cost=np.inf, vehicle=None, heuristic_map = None):
+        x=0., y=0., theta=0., k=0., v=0., acc=0., o_x=None, o_y=None, o_theta=None, time_i=np.inf, cost=np.inf, vehicle=None, heuristic_map = None, static=True):
         if road is not None:
             if r_i is not None and r_j is not None:
                 self.r_i = r_i  # int
@@ -54,7 +54,7 @@ class State:
         self.parent = None
         self.cost = cost
         if heuristic_map is not None:
-            self.heuristic = query_heuristic(self, heuristic_map, vehicle)
+            self.heuristic = query_heuristic(self, heuristic_map=heuristic_map, vehicle=vehicle, static=static)
         else:
             self.heuristic = 0.
         self.priority = self.cost + self.heuristic
@@ -160,8 +160,9 @@ class State:
                     # y = self.y + s*np.sin(self.theta) + l*np.cos(self.theta)
                     # s, l = road.xy2sl(x,y)
                     i = int(round(s/road.grid_length))
-                    ll = l/road.grid_width
-                    j = 0 if int(ll)==0 else int(ll/abs(ll)*floor(abs(ll)))
+                    j = int(round(l/road.grid_width))
+                    # ll = l/road.grid_width
+                    # j = 0 if int(ll)==0 else int(ll/abs(ll)*floor(abs(ll)))
                     k = int(round(v/2))
                     try:
                         state = state_dict[(i,j,k)]

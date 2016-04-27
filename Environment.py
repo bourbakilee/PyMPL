@@ -539,14 +539,45 @@ def heuristic_map_constructor(goal, cost_map, resolution=0.2):
     return heuristic_map
 
 
-def query_heuristic(current, heuristic_map, vehicle = None, resolution = 0.2):
+def query_heuristic(current, heuristic_map, static = True, vehicle = None, resolution = 0.2, time_resolution = 0.1):
     if vehicle is None:
         vehicle = Vehicle()
     traj = np.array([[current.time, current.length, current.x, current.y, current.theta, current.k, 0., current.v, current.a]])
     points = vehicle.covering_centers(traj)
     index = (points/resolution).astype(int)
-    try:
-        h = 1.5*heuristic_map[index[0,1], index[0,0]] + heuristic_map[index[0,3], index[0,2]] + 0.5*heuristic_map[index[0,5], index[0,4]]
-    except Exception as e:
-        h = 0.
-    return h*8
+    if static:
+        if len(heuristic_map.shape) == 2:
+            hm = heuristic_map
+        else:
+            hm = heuristic_map[0,:,:]
+        try:
+            h = 1.5*hm[index[0,1], index[0,0]] + hm[index[0,3], index[0,2]] + 0.5*hm[index[0,5], index[0,4]]
+        except Exception as e:
+            h = 1.e10
+        return h*8
+    else:
+        # from math import floor
+        t_i = floor(current.time / time_resolution)
+        if 0 <= t_i < heuristic_map.shape[0]-1:
+            hm1 = heuristic_map[t_i,:,:]
+            hm2 = heuristic_map[t_i+1,:,:]
+            try:
+                h1 = 1.5*hm1[index[0,1], index[0,0]] + hm1[index[0,3], index[0,2]] + 0.5*hm1[index[0,5], index[0,4]]
+                h2 = 1.5*hm2[index[0,1], index[0,0]] + hm2[index[0,3], index[0,2]] + 0.5*hm2[index[0,5], index[0,4]]
+                h = 10*(((t_i+1)*0.1-current.time)*h1 + (current.time-t_i*0.1)*h1)
+            except Exception as e:
+                h = 1.e10
+        elif t_i == heuristic_map.shape[0]-1:
+            hm = heuristic_map[t_i,:,:]
+            try:
+                h = 1.5*hm[index[0,1], index[0,0]] + hm[index[0,3], index[0,2]] + 0.5*hm[index[0,5], index[0,4]]
+            except Exception as e:
+                h = 1.e10
+        else:
+            h = 1.e10
+        return h*8
+    # try:
+    #     h = 1.5*heuristic_map[index[0,1], index[0,0]] + heuristic_map[index[0,3], index[0,2]] + 0.5*heuristic_map[index[0,5], index[0,4]]
+    # except Exception as e:
+    #     h = 0.
+    # return h*8

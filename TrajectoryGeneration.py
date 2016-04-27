@@ -236,8 +236,8 @@ def calc_velocity(v0, a0, vg, sg):
     # return: q0~q2, tg
     u0, u1, u2, tg = v0, a0, None, None
     delta = (2*v0+vg)**2 + 6*a0*sg
-    if delta >= -1.e-4:
-        if abs(a0) > 1.e-3:
+    if delta >= -1.e-6:
+        if abs(a0) > 1.e-4:
             if sg>0.:
                 tg = (np.sqrt(max(0.,delta)) - 2*v0 -vg)/a0
             elif sg<0.:
@@ -273,14 +273,6 @@ def spiral3_calc(p, r=None, s=None, q=(0.,0.,0.), ref_delta_s=0.1):
     for i in range(1,N+1):
         line[i,1] = line[i-1,1] + d_x[i-1] # x
         line[i,2] = line[i-1,2] + d_y[i-1] # y
-    # if q is not None:
-    #     sin_x = np.sin(q[2])*line[:,1]
-    #     cos_x = np.cos(q[2])*line[:,1]
-    #     sin_y = np.sin(q[2])*line[:,2]
-    #     cos_y = np.cos(q[2])*line[:,2]
-    #     line[:,1] = q[0] + cos_x - sin_y
-    #     line[:,2] = q[1] + sin_x + cos_y
-    #     line[:,3] = np.mod((line[:,3] + q[2]), 2*np.pi)
     return line
 
 
@@ -363,23 +355,51 @@ def calc_trajectory_reverse(u, p, r=None, s=None, path=None, q0=None, ref_time=0
 
 # query cost from costmap
 # traj: array of points on trajectory - [(t,s,x,y,theta,k,dk,v,a)]
-def query_cost(traj, costmap, vehicle=None, resolution=0.2):
+def query_cost(traj, costmap, static = True, vehicle = None, resolution = 0.2, time_resolution = 0.1):
     if vehicle is None:
         vehicle = Env.Vehicle()
     points = vehicle.covering_centers(traj)
     index = (points/resolution).astype(int)
+
     cost = np.zeros((traj.shape[0],1))
-    for i in range(traj.shape[0]):
-        cost[i] = 1.5*costmap[index[i,1], index[i,0]] + costmap[index[i,3], index[i,2]] + 0.5*costmap[index[i,5], index[i,4]]
-    # print(cost)
+    if static:
+        if len(costmap.shape) == 2:
+            cm = costmap
+        else:
+            cm = costmap[0,:,:]
+        for i in range(traj.shape[0]):
+            try:
+                cost[i] = 1.5*costmap[index[i,1], index[i,0]] + costmap[index[i,3], index[i,2]] + 0.5*costmap[index[i,5], index[i,4]]
+            except Exception as e:
+                cost[i] = 1.e10
+    else: # dynamic
+        t_i = np.floor(traj[:,0]/time_resolution).astype(int)
+        for i in range(traj.shape[0]):
+            if 0 <= t_i[i] < costmap.shape[0]-1:
+                cm1 = costmap[t_i[i], :, :]
+                cm2 = costmap[t_i[i]+1, :, :]
+                try:
+                    cost1 = 1.5*cm1[index[i,1], index[i,0]] + cm1[index[i,3], index[i,2]] + 0.5*cm1[index[i,5], index[i,4]]
+                    cost2 = 1.5*cm2[index[i,1], index[i,0]] + cm2[index[i,3], index[i,2]] + 0.5*cm2[index[i,5], index[i,4]]
+                    cost[i] = (((t_i[i]+1)*time_resolution-traj[i,0])*cost1 + (traj[i,0]-t_i[i]*time_resolution)*cost2) / time_resolution
+                except Exception as e:
+                    cost[i] = 1.e10
+            elif t_i[i] == costmap.shape[0]-1:
+                cm = costmap[t_i[i], :, :]
+                try:
+                    cost[i] = 1.5*cm[index[i,1], index[i,0]] + cm[index[i,3], index[i,2]] + 0.5*cm[index[i,5], index[i,4]]
+                except Exception as e:
+                    cost[i] = 1.e10
+            else:
+                cost[i] = 1.e10
     return cost
 
 
 # this trajectory evaluation procedure is just a trial, the formal one has been writen in C++ ~~~~
 # trajectory evaluation - not only check the collision, also truncate the collision part of trajectory
 # 
-def eval_trajectory(trajectory, costmap, vehicle=Env.Vehicle(), road=None, resolution=0.2, truncate=True, \
-    weights=np.array([5., 10., 0.05, 0.2, 0.2, 0.2, 10., 0.5, 10., -2.]), p_lims=(0.2,0.15,20.+1.e-6,-1.e-6,2.1,-6.,6.)):
+def eval_trajectory(trajectory, costmap, vehicle=Env.Vehicle(), road=None, resolution=0.2, time_resolution = 0.1, truncate=True, static=True, \
+    weights=np.array([5., 10., 0.05, 0.2, 0.2, 0.2, 10., 0.5, 10., -2.]), p_lims=(0.2,0.15,20.01,-0.01,2.1,-6.1,9.81)):
     # trajectory: array of points on trajectory - [(t,s,x,y,theta,k,dk,v,a)]
     # weights: weights for (k, dk, v, a, a_c, l, env, j, t, s)
     # p_lims - { k_m, dk_m, v_max, v_min, a_max, a_min, ac_m } = (0.2,0.1,20.,0.,2.,-6.,10.) - (np.inf, np.inf, np.inf, -np.inf, np.inf, -np.inf, np.inf)
@@ -403,7 +423,7 @@ def eval_trajectory(trajectory, costmap, vehicle=Env.Vehicle(), road=None, resol
         # print(l_list)
         cost_matrix[:,5] = weights[5] * np.abs(l_list) # should also consider target lane offset
     if costmap is not None:
-        cost_matrix[:,6] = weights[6]*query_cost(trajectory, costmap, vehicle, resolution)[:,0]
+        cost_matrix[:,6] = weights[6]*query_cost(trajectory, costmap=costmap, vehicle=vehicle, resolution=resolution, time_resolution = 0.1, static=static)[:,0]
     # cost matrix revise
     cost_matrix[:,0] = np.where(np.abs(trajectory[:,5])>p_lims[0], np.inf, cost_matrix[:,0]) # k
     cost_matrix[:,1] = np.where(np.abs(trajectory[:,6])>p_lims[1], np.inf, cost_matrix[:,1]) # dk

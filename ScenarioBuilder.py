@@ -438,7 +438,7 @@ def extend_plot():
 
 
 if __name__ == '__main__':
-    env_plot()
+    # env_plot()
     # costmap_plot()
     # extend_plot()
-    # senarios_1()
+    senarios_1()
