@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 from matplotlib.path import Path
 import matplotlib.patches as patches
 import sqlite3
+from math import floor, ceil
 
 def test_vehicle():
     veh = Vehicle()
@@ -215,34 +216,65 @@ def test_transition():
     #
     cfg0 = road.ij2xy(4, 0)
     veh = Vehicle(trajectory=np.array([[-1.,-1.,cfg0[0], cfg0[1], cfg0[2], cfg0[3], 0.,5.,0.]]))
-    verts0 = [tuple(veh.vertex[i]) for i in range(6)]
-    verts0.append(verts0[0])
-    codes = [Path.MOVETO,
-        Path.LINETO,
-        Path.LINETO,
-        Path.LINETO,
-        Path.LINETO,
-        Path.LINETO,
-        Path.CLOSEPOLY,
-        ]
-    path0 = Path(verts0, codes)
-    patch0 = patches.PathPatch(path0,facecolor='cyan')
-    ax1.add_patch(patch0)
+    # verts0 = [tuple(veh.vertex[i]) for i in range(6)]
+    # verts0.append(verts0[0])
+    # codes = [Path.MOVETO,
+    #     Path.LINETO,
+    #     Path.LINETO,
+    #     Path.LINETO,
+    #     Path.LINETO,
+    #     Path.LINETO,
+    #     Path.CLOSEPOLY,
+    #     ]
+    # path0 = Path(verts0, codes)
+    # patch0 = patches.PathPatch(path0,facecolor='cyan')
+    # ax1.add_patch(patch0)
     #
+    cm = np.zeros((500,500))
     hm = np.zeros((500,500))
-    goal = State(road=road,r_i=30,r_j=-4,v=8.33)
-    state = State(time=0.,length=0.,road=road,r_i=4,r_j=0,v=5.,cost=0., heuristic_map=hm)
-    ax1.plot(state.x, state.y, 'rs')
-    node_dict = {}
-    # successors = state.successors(state_dict=node_dict, road=road, goal=goal, vehicle=veh, heuristic_map=hm, accs=[-3., -2., -1., 0., 1.], v_offset=[-1.,-0.5, 0., 0.5, 1.],times=[3.])
-    successors = state.successors(state_dict=node_dict, road=road, goal=goal, vehicle=veh, heuristic_map=hm, accs=[ 0.], v_offset=[-1.,-0.5, 0., 0.5, 1.],times=[2.])
-    print("number of successors: {0}".format(len(successors)))
-    for successor in successors:
-        p, r = TG.calc_path(cursor, state.q, successor.q)
-        if p is not None and p[4]>0:
-            line = TG.spiral3_calc(p, r=r, q=state.q)
-            ax1.plot(successor.x, successor.y, 'mo')
-            ax1.plot(line[:,1], line[:,2], linewidth=2)
+    goal = State(road=road,r_i=15,r_j=-2,v=6.)
+    goal2 = State(road=road,r_s=goal.r_s+0.3,r_l=goal.r_l+0.1,v=6.)
+    goal1 = State(road=road,r_s=goal.r_s+0.7,r_l=goal.r_l+0.3,v=6.)
+    ax1.text(goal1.x, goal1.y+0.4, 'g1', fontsize=15) 
+    ax1.text(goal2.x, goal2.y-0.4, 'g2', fontsize=15) 
+    ax1.plot(goal1.x, goal1.y, 'mo')
+    ax1.plot(goal2.x, goal2.y, 'mo')
+    state1 = State(time=0.,length=0.,road=road,r_i=4,r_j=0,v=5.,cost=0., heuristic_map=hm)
+    state2 = State(time=0.,length=0.,road=road,r_i=5,r_j=-4,v=5.,cost=0., heuristic_map=hm)
+    ax1.text(state1.x, state1.y+0.4, 's1', fontsize=15) 
+    ax1.text(state2.x, state2.y-0.4, 's2', fontsize=15) 
+    ax1.plot(state1.x, state1.y, 'mo')
+    ax1.plot(state2.x, state2.y, 'mo')
+    # ax1.plot(state.x, state.y, 'rs')
+    # for s1 in [state1, state2]:
+    #     for s2 in [goal1,goal2]:
+    #         traj = trajectory(s1,s2,cursor)
+    #         if traj is not None:
+    #             ax1.plot(traj[:,2], traj[:,3], linewidth=2)
+    #             ax1.plot(traj[0,2], traj[0,3], 'mo')
+    #             ax1.plot(traj[-1,2], traj[-1,3], 'mo')
+    traj1 = trajectory(state1,goal1,cursor)
+    traj2 = trajectory(state2,goal2,cursor)
+    traj3 = trajectory(state2,goal1,cursor)
+    ax1.plot(traj1[:,2], traj1[:,3], linewidth=2., color='red')
+    ax1.plot(traj2[:,2], traj2[:,3], linewidth=2., color='black')
+    ax1.plot(traj3[:,2], traj3[:,3], 'b--', linewidth=2.)
+    # node_dict = {}
+    # # successors = state.successors(state_dict=node_dict, road=road, goal=goal, vehicle=veh, heuristic_map=hm, accs=[-3., -2., -1., 0., 1.], v_offset=[-1.,-0.5, 0., 0.5, 1.],times=[3.])
+    # successors = state.successors(state_dict=node_dict, road=road, goal=goal, vehicle=veh, heuristic_map=hm, times = [2.5]) # accs=[ 0.], v_offset=[-1.,-0.5, 0., 0.5, 1.],times=[1.,2.,4.]
+    # print("number of successors: {0}".format(len(successors)))
+    # for successor in successors:
+    #     # p, r = TG.calc_path(cursor, state.q, successor.q)
+    #     # if p is not None and p[4]>0:
+    #     #     line = TG.spiral3_calc(p, r=r, q=state.q)
+    #     #     ax1.plot(successor.x, successor.y, 'mo')
+    #     #     ax1.plot(line[:,1], line[:,2], linewidth=2)
+    #     traj1 = trajectory(state,successor,cursor)
+    #     if traj1 is not None:
+    #         _, traj, _ = TG.eval_trajectory(traj1,costmap=cm,road=road)
+    #         if traj is not None:
+    #             ax1.plot(traj[:,2], traj[:,3], linewidth=2)
+    #             ax1.plot(traj[-1,2], traj[-1,3], 'mo')
     #
     # ax1.plot([cfg0[0], cfg1[0], cfg2[0], cfg3[0], cfg4[0]], [cfg0[1], cfg1[1], cfg2[1], cfg3[1], cfg4[1]], 'ro')
     # for q1 in [cfg1, cfg2]:
@@ -628,11 +660,44 @@ def test_long_path():
     conn.close()
 
 
+def test_traj_sampling():
+    conn = sqlite3.connect('InitialGuessTable.db')
+    cursor = conn.cursor()
+
+    q0 = (10., 50., 0., 0.)
+    q1 = (40., 60., 0., 0)
+
+    p, r = TG.calc_path(cursor, q0, q1)
+    # print('p={0},r={1}'.format(p,r))
+
+    line = TG.spiral3_calc(p, r=r, q=q0)
+    # print('Goal Configuration: {0}'.format(line[-1,:]))
+    # print(line.shape)
+
+    fig = plt.figure()
+    ax1 = fig.add_subplot(111)
+    # ax2 = fig.add_subplot(122)
+
+    ax1.plot(line[:,1], line[:,2], color='navy', linewidth=2.)
+    for i in range(65):
+        # ax1.plot(line[i*5, 1], line[i*5, 2], 'ro')
+        k = floor(324/64**2*i**2)
+        ax1.plot(line[k, 1], line[k, 2], 'ro')
+    ax1.plot(line[-1, 1], line[-1, 2], 'ro')
+
+    plt.axis('equal')
+    # plt.axis('off')
+    plt.show()
+
+    cursor.close()
+    conn.close()
+
+
 if __name__ == '__main__':
     # test_vehicle()
     # test_road()
-    test_open()
-    # test_transition()
+    # test_open()
+    test_transition()
     # test_workspace()
     # test()
     # test_traj()
@@ -642,3 +707,4 @@ if __name__ == '__main__':
     # test_cost_fun_discrete()
     # test_different_initval()
     # test_long_path()
+    # test_traj_sampling()

@@ -148,8 +148,8 @@ class State:
         # times = [1., 2., 4. , 7.]
         # p_lims - { k_m, dk_m, v_max, v_min, a_max, a_min, ac_m } = (0.2,0.1,20.,0.,2.,-6.,10.)
         outs = []
-        if (self.v + goal.v)/2*5 > goal.r_s - self.r_s:
-            outs.append(goal)
+        # if (self.v + goal.v)/2*5 > goal.r_s - self.r_s:
+        #     outs.append(goal)
         for n1 in accs:
             for n2 in v_offset:
                 for n3 in times:
@@ -180,7 +180,7 @@ class State:
     # {next_state}
     # state_dict - - {(o_x,o_y,theta_i, v_i):state(x,y,theta,v)}
     # traj_dict - {(state_i, state_g):traj}
-    def successors_open(self, state_dict, traj_dict, cursor, goal=None, vehicle=None, heuristic_map=np.zeros((500,500)), accs=[-1., -1., 0., 1.], times=[1.,3.], \
+    def successors_open(self, state_dict, traj_dict, cursor, goal=None, vehicle=None, heuristic_map=np.zeros((500,500)), accs=[-2., -1., 0., 1.], times=[1.,2.,4.], \
         p_lims=(0.2,0.15,4.,-2.,2.,-6.,6.)):
         # goal state is not None
         # accs = [-2., -1., 0., 1.]

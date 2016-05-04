@@ -84,7 +84,7 @@ class Vehicle():
 
     #
     def covering_disk_centers(self):
-        distance = 2.*self.length/3.
+        distance = self.length/3.
         direction = np.array([np.cos(self.heading),np.sin(self.heading)])
         centers = np.zeros((3,2))
         centers[1] = self.geometric_center
@@ -214,11 +214,18 @@ class Workspace():
         self.static_obsts = static_obsts # list of static vehicles
         self.moving_obsts = moving_obsts # list of moving vehicles
         self.road = road
-        self.current_lane = current_lane
-        self.target_lane = target_lane
-        self.lane_grids = self.grids_of_lanes(self.road)
-        self.lane_costs = lane_costs
-        self.lane_map = self.__lane_map()
+        if road is not None:
+            self.current_lane = current_lane
+            self.target_lane = target_lane
+            self.lane_grids = self.grids_of_lanes(self.road)
+            self.lane_costs = lane_costs
+            self.lane_map = self.__lane_map()
+        else:
+            self.current_lane = 0
+            self.target_lane = 0
+            self.lane_grids = np.zeros((500,500))
+            self.lane_costs = np.zeros((500,500))
+            self.lane_map = np.zeros((500,500))
         self.vehicle = vehicle
         #
         # self.disk = self.disk_filter()
@@ -517,7 +524,10 @@ def heuristic_map_constructor(goal, cost_map, resolution=0.2):
     goal - State, has x,y attributes
     return type : matrix has same size as cost_map
     """
-    g_i, g_j = floor(goal.y/resolution), floor(goal.x/resolution)
+    if type(goal)==list or type(goal)==tuple:
+        g_i, g_j = floor(goal[1]/resolution), floor(goal[0]/resolution)
+    else:
+        g_i, g_j = floor(goal.y/resolution), floor(goal.x/resolution)
     goal_grid = Grid(g_i, g_j, cost_map[g_i, g_j])
     grid_dict = {(goal_grid.i, goal_grid.j):goal_grid}
     pq = PriorityQueue()
