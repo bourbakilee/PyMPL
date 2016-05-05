@@ -33,8 +33,8 @@ def senarios_4():
             ax.plot(road.longitudinal_lines[:,2*i], road.longitudinal_lines[:,2*i+1], color='green', linewidth=1.)
 
     #
-    ws = Workspace(road=road, lane_costs=[0.4,0.1,0.2])
-    cost_map_base = ws.lane_map
+    # ws = Workspace(road=road, lane_costs=[0.4,0.1,0.2])
+    # cost_map_base = ws.lane_map
     # ax.imshow(ws.lane_map, cmap=plt.cm.Blues, origin='lower', extent=(0,100,0,100))
 
     s1 = State(time=0.,length=0.,road=road,r_s=25.,r_l=road.lane_width, v=15.)
@@ -52,72 +52,90 @@ def senarios_4():
     cfg3 = road.sl2xy(30.,-road.lane_width)
     obst_s = Vehicle(trajectory=np.array([[-1.,-1.,cfg3[0], cfg3[1], cfg3[2], cfg3[3], 0.,0.,0.]]))
 
-    #
-    # codes6 = [Path.MOVETO,
-    #     Path.LINETO,
-    #     Path.LINETO,
-    #     Path.LINETO,
-    #     Path.LINETO,
-    #     Path.LINETO,
-    #     Path.CLOSEPOLY,
-    #     ]
+    cfg0 = road.sl2xy(5.,0.)
+    veh0 = Vehicle(trajectory=np.array([[-1.,-1.,cfg0[0], cfg0[1], cfg0[2], cfg0[3], 0.,0.,0.]]))
+    cfg1 = road.sl2xy(90.,0.)
+    veh1 = Vehicle(trajectory=np.array([[-1.,-1.,cfg1[0], cfg1[1], cfg1[2], cfg1[3], 0.,0.,0.]]))
 
-    # verts_s = [tuple(obst_s.vertex[i]) for i in range(6)]
-    # verts_s.append(verts_s[0])
-    # ax.add_patch(patches.PathPatch(Path(verts_s, codes6), facecolor='cyan'))
-
-    # for i in range(20):
-    #     state1 = trajectory_interp(traj1, i*0.2)
-    #     state2 = trajectory_interp(traj2, i*0.2)
-    #     if state1 is not None:
-    #         obst_d1 = Vehicle(trajectory=np.array([[-1.,-1.,state1[2], state1[3], state1[4], 0., 0.,0.,0.]]))
-    #         verts_d1 = [tuple(obst_d1.vertex[i]) for i in range(6)]
-    #         verts_d1.append(verts_d1[0])
-    #         ax.add_patch(patches.PathPatch(Path(verts_d1, codes6), facecolor='cyan', alpha=(i+1)/20.))
-    #     if state2 is not None:
-    #         obst_d2 = Vehicle(trajectory=np.array([[-1.,-1.,state2[2], state2[3], state2[4], 0., 0.,0.,0.]]))
-    #         verts_d2 = [tuple(obst_d2.vertex[i]) for i in range(6)]
-    #         verts_d2.append(verts_d2[0])
-    #         ax.add_patch(patches.PathPatch(Path(verts_d2, codes6), facecolor='cyan', alpha=(i+1)/20.))
+    ax.plot(cfg0[0], cfg0[1], 'ko')
+    ax.text(cfg0[0], cfg0[1]+0.4, 'Start')
+    ax.plot(cfg1[0], cfg1[1], 'ko')
+    ax.text(cfg1[0], cfg1[1]+0.4, 'Goal')
 
     #
-    cost_maps = np.zeros((150,500,500))
-    grids_s = ws.grids_occupied_by_polygon(obst_s.vertex)
-    lane_grids = sum(ws.lane_grids)
-    lane_grids = np.where(lane_grids>1.,1., lane_grids)
-    off_road_map = 1. - lane_grids
-    grids_s += off_road_map
+    codes6 = [Path.MOVETO,
+        Path.LINETO,
+        Path.LINETO,
+        Path.LINETO,
+        Path.LINETO,
+        Path.LINETO,
+        Path.CLOSEPOLY,
+        ]
 
-    for i in range(150):
-        obst_map = np.zeros((500,500))
-        obst_map += grids_s
-        state1 = trajectory_interp(traj1, i/10.)
-        state2 = trajectory_interp(traj2, i/10.)
+    verts_s = [tuple(obst_s.vertex[i]) for i in range(6)]
+    verts_s.append(verts_s[0])
+    ax.add_patch(patches.PathPatch(Path(verts_s, codes6), facecolor='cyan'))
+
+    verts0 = [tuple(veh0.vertex[i]) for i in range(6)]
+    verts0.append(verts0[0])
+    ax.add_patch(patches.PathPatch(Path(verts0, codes6), facecolor='green', alpha=0.5))
+
+    verts1 = [tuple(veh1.vertex[i]) for i in range(6)]
+    verts1.append(verts1[0])
+    ax.add_patch(patches.PathPatch(Path(verts1, codes6), facecolor='red', alpha=0.5))
+
+    for i in range(20):
+        state1 = trajectory_interp(traj1, i*0.2)
+        state2 = trajectory_interp(traj2, i*0.2)
         if state1 is not None:
             obst_d1 = Vehicle(trajectory=np.array([[-1.,-1.,state1[2], state1[3], state1[4], 0., 0.,0.,0.]]))
-            grids_d1 = ws.grids_occupied_by_polygon(obst_d1.vertex)
-            obst_map += grids_d1
+            verts_d1 = [tuple(obst_d1.vertex[i]) for i in range(6)]
+            verts_d1.append(verts_d1[0])
+            ax.add_patch(patches.PathPatch(Path(verts_d1, codes6), facecolor='cyan', alpha=(i+1)/20.))
         if state2 is not None:
             obst_d2 = Vehicle(trajectory=np.array([[-1.,-1.,state2[2], state2[3], state2[4], 0., 0.,0.,0.]]))
-            grids_d2 = ws.grids_occupied_by_polygon(obst_d2.vertex)
-            obst_map += grids_d2
+            verts_d2 = [tuple(obst_d2.vertex[i]) for i in range(6)]
+            verts_d2.append(verts_d2[0])
+            ax.add_patch(patches.PathPatch(Path(verts_d2, codes6), facecolor='cyan', alpha=(i+1)/20.))
 
-        collision_map = cv2.filter2D(obst_map, -1, ws.collision_filter)
-        collision_map = np.where(collision_map>1.e-6, 1., 0.)
-        cost_map = cv2.filter2D(collision_map, -1, ws.cost_filter)
-        cost_map += collision_map
-        cost_map = np.where(cost_map>1., np.inf, cost_map)
-        cost_map = np.where(cost_map<1.e-8, 0., cost_map)
-        cost_map += cost_map_base
-        cost_maps[i,:,:] = cost_map
+    #
+    # cost_maps = np.zeros((150,500,500))
+    # grids_s = ws.grids_occupied_by_polygon(obst_s.vertex)
+    # lane_grids = sum(ws.lane_grids)
+    # lane_grids = np.where(lane_grids>1.,1., lane_grids)
+    # off_road_map = 1. - lane_grids
+    # grids_s += off_road_map
+
+    # for i in range(150):
+    #     obst_map = np.zeros((500,500))
+    #     obst_map += grids_s
+    #     state1 = trajectory_interp(traj1, i/10.)
+    #     state2 = trajectory_interp(traj2, i/10.)
+    #     if state1 is not None:
+    #         obst_d1 = Vehicle(trajectory=np.array([[-1.,-1.,state1[2], state1[3], state1[4], 0., 0.,0.,0.]]))
+    #         grids_d1 = ws.grids_occupied_by_polygon(obst_d1.vertex)
+    #         obst_map += grids_d1
+    #     if state2 is not None:
+    #         obst_d2 = Vehicle(trajectory=np.array([[-1.,-1.,state2[2], state2[3], state2[4], 0., 0.,0.,0.]]))
+    #         grids_d2 = ws.grids_occupied_by_polygon(obst_d2.vertex)
+    #         obst_map += grids_d2
+
+    #     collision_map = cv2.filter2D(obst_map, -1, ws.collision_filter)
+    #     collision_map = np.where(collision_map>1.e-6, 1., 0.)
+    #     cost_map = cv2.filter2D(collision_map, -1, ws.cost_filter)
+    #     cost_map += collision_map
+    #     cost_map = np.where(cost_map>1., np.inf, cost_map)
+    #     cost_map = np.where(cost_map<1.e-8, 0., cost_map)
+    #     cost_map += cost_map_base
+    #     cost_maps[i,:,:] = cost_map
     # with open('scenario_4/cost_maps.pickle','wb') as f1:  
     #     pickle.dump(cost_maps, f1)
 
 
 
 
-    plt.xlabel('$x (m)$', fontsize=20)
-    plt.ylabel('$y (m)$', fontsize=20)
+    # plt.xlabel('$x (m)$', fontsize=20)
+    # plt.ylabel('$y (m)$', fontsize=20)
     plt.axis('equal')
     # plt.axis('off')
     # plt.savefig('scenario_4/obstacles2.png', dpi=600)
@@ -245,6 +263,8 @@ def scenario_4_sim():
         rows -= traj.shape[0]
         # row += traj.shape[0]
         state = state.parent
+    with open('scenario_4/final_traj.pickle','wb') as f3:  
+        pickle.dump(final_traj, f3)
 
     #
     #################
@@ -736,7 +756,7 @@ if __name__ == '__main__':
     # env_plot()
     # costmap_plot()
     # extend_plot()
-    # senarios_1()
+    senarios_1()
     # senarios_4()
     # test_cost_maps()
-    scenario_4_sim()
+    # scenario_4_sim()
