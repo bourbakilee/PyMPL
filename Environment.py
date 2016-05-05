@@ -224,7 +224,7 @@ class Workspace():
             self.current_lane = 0
             self.target_lane = 0
             self.lane_grids = np.zeros((500,500))
-            self.lane_costs = np.zeros((500,500))
+            self.lane_costs = [0.,0.,0.]
             self.lane_map = np.zeros((500,500))
         self.vehicle = vehicle
         #

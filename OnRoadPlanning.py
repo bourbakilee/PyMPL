@@ -53,7 +53,7 @@ class State:
         self.extend = False
         self.parent = None
         self.cost = cost
-        if heuristic_map is not None:
+        if heuristic_map is not None and not np.isinf(self.time):
             self.heuristic = query_heuristic(self, heuristic_map=heuristic_map, vehicle=vehicle, static=static)
         else:
             self.heuristic = 0.
@@ -68,7 +68,7 @@ class State:
 
     # update if traj successfully connect from parent to self
     # cost must not be inf
-    def update(self, parent, cost, traj, traj_dict):
+    def update(self, parent, cost, traj, traj_dict,heuristic_map,vehicle,static):
         if not parent.extend:
             parent.extend = True
         if self.cost > cost + parent.cost:
@@ -79,14 +79,15 @@ class State:
                 del traj_dict[(self.parent, self)]
             self.parent = parent
             self.cost = cost + parent.cost
+            self.heuristic = query_heuristic(self, heuristic_map=heuristic_map, vehicle=vehicle, static=static)
             self.priority = self.heuristic + cost
             return True
         return False
 
 
     @classmethod
-    def update2(cls, traj, road, heuristic_map):
-        return cls(road=road, x=traj[-1,2], y=traj[-1,3], theta=traj[-1,4], k=traj[-1,5], v=traj[-1,7], acc=traj[-1,8], heuristic_map=heuristic_map)
+    def update2(cls, traj, road, heuristic_map,vehicle,static):
+        return cls(road=road, x=traj[-1,2], y=traj[-1,3], theta=traj[-1,4], k=traj[-1,5], v=traj[-1,7], acc=traj[-1,8], heuristic_map=heuristic_map,vehicle=vehicle, static=static)
 
 
 
@@ -99,9 +100,9 @@ class State:
     # ref cost - parent node's cost
     # state_dict - {(i,j,k):state(i,j,v)}
     @staticmethod
-    def post_process(current, successor, goal, cost, traj, truncated, pq, state_dict, traj_dict, vehicle, road, costmap, heuristic_map,cursor, weights=np.array([5., 10., 0.05, 0.2, 0.2, 0.2, 10., 0.5, 10., -2.])):
+    def post_process(current, successor, goal, cost, traj, truncated, pq, state_dict, traj_dict, vehicle, road, costmap, heuristic_map,cursor, static=True, weights=np.array([5., 10., 0.05, 0.2, 0.2, 0.2, 10., 0.5, 10., -2.])):
         if not truncated: # successor.reach
-            if successor.update(current, cost, traj, traj_dict):
+            if successor.update(current, cost, traj, traj_dict,heuristic_map,vehicle,static):
                 pq.put(successor)
                 if successor != goal:
                     i,j,k = successor.r_i, successor.r_j, int(round(successor.v/2))
@@ -109,7 +110,7 @@ class State:
                         state_dict[(i,j,k)] = successor
                 traj_dict[(current, successor)] = traj
         else:
-            successor = State.update2(traj, road, heuristic_map)
+            successor = State.update2(traj, road, heuristic_map, vehicle, static)
             i, j, k = successor.r_i, successor.r_j, int(round(successor.v/2))
             try:
                 state = state_dict[(i,j,k)]
@@ -129,7 +130,7 @@ class State:
                 state_dict[(i,j,k)] = successor
             finally:
                 if successor is not None:
-                    if successor.update(current, cost, traj, traj_dict):
+                    if successor.update(current, cost, traj, traj_dict,heuristic_map,vehicle,static):
                         pq.put(successor)
                         traj_dict[(current, successor)] = traj
 
@@ -148,8 +149,8 @@ class State:
         # times = [1., 2., 4. , 7.]
         # p_lims - { k_m, dk_m, v_max, v_min, a_max, a_min, ac_m } = (0.2,0.1,20.,0.,2.,-6.,10.)
         outs = []
-        # if (self.v + goal.v)/2*5 > goal.r_s - self.r_s:
-        #     outs.append(goal)
+        if (self.v + goal.v)/2*5 > goal.r_s - self.r_s:
+            outs.append(goal)
         for n1 in accs:
             for n2 in v_offset:
                 for n3 in times:
@@ -282,8 +283,21 @@ def trajectory_stay(start, goal, time = None):
     return None
 
 
+def trajectory_interp(traj, time):
+    # traj - array([[t,s,x,y,theta,k,dk,v,a]])
+    if traj[0,0] <= time <= traj[-1,0]:
+        i = 1
+        while time > traj[i,0]:
+            i += 1
+        dt = traj[i,0] - traj[i-1,0]
+        dt1 = time - traj[i-1,0]
+        dt2 = traj[i,0] - time
+        if dt>0:
+            return (traj[i-1,:]*dt2 + traj[i,:]*dt1)/dt
+    return None
 
-def Astar(start, goal, road, cost_map, vehicle, heuristic_map, cursor, weights=np.array([5., 10., 0.05, 0.2, 0.2, 0.2, 10., 0.5, 10., -2.])):
+
+def Astar(start, goal, road, cost_map, vehicle, heuristic_map, cursor, static=True,weights=np.array([5., 10., 0.05, 0.2, 0.2, 0.2, 10., 0.5, 10., -2.])):
     # pq - priority queue of states waiting to be extended, multiprocessing
     # node_dict - {(i,j,k):state}
     # edge_dict - store trajectory, {(state1, state2):trajectory}
@@ -293,7 +307,7 @@ def Astar(start, goal, road, cost_map, vehicle, heuristic_map, cursor, weights=n
     pq.put(start)
     node_dict = {(start.r_i, start.r_j, int(round(start.v/2))):start, (goal.r_i, goal.r_j, int(round(goal.v/2))):goal}
     edge_dict = {}
-    while not goal.extend and not pq.empty():
+    while not goal.reach and not pq.empty():
         current = pq.get()
         successors = current.successors(state_dict=node_dict, road=road, goal=goal, vehicle=vehicle, heuristic_map=heuristic_map)
         current.extend = True
@@ -302,13 +316,13 @@ def Astar(start, goal, road, cost_map, vehicle, heuristic_map, cursor, weights=n
             traj = trajectory(current, successor, cursor)
             if traj is not None:
                 if successor == goal:
-                    cost = TG.eval_trajectory(traj, cost_map, vehicle=vehicle, road=road, truncate=False, weights=weights)
+                    cost = TG.eval_trajectory(traj, cost_map, vehicle=vehicle, road=road, truncate=False, static=static, weights=weights)
                     truncated = False
                 else:
-                    cost, traj, truncated = TG.eval_trajectory(traj, cost_map, vehicle=vehicle, road=road, weights=weights)
+                    cost, traj, truncated = TG.eval_trajectory(traj, cost_map, vehicle=vehicle, road=road, static=static, weights=weights)
                 if not np.isinf(cost) and traj is not None:
-                    State.post_process(current, successor, goal, cost, traj, truncated, pq, node_dict, edge_dict, vehicle, road, cost_map, heuristic_map, cursor, weights=weights)
-    if goal.extend:
+                    State.post_process(current, successor, goal, cost, traj, truncated, pq, node_dict, edge_dict, vehicle, road, cost_map, heuristic_map, cursor, static=static, weights=weights)
+    if goal.reach:
         return True, node_dict, edge_dict
     else:
         return False, node_dict, edge_dict
