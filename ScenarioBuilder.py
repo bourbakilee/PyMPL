@@ -252,7 +252,7 @@ def scenario_4_sim():
         # ax.plot(traj[:,2], traj[:,3], traj[:,0], color='teal', linewidth=1.)
         
         # ax.plot(traj[:,0], traj[:,7], color='black', linewidth=0.5)
-    print(rows)
+    # print(rows)
     final_traj=np.zeros((rows,9))
     state = goal
     # row = 0
@@ -339,25 +339,54 @@ def senarios_1():
     # ax2 = fig.add_subplot(212)
 
     # road center line points
-    p = (0.,0.,0.,0.,90.) # (p0~p3, sg)
-    center_line = TG.spiral3_calc(p, q=(5.,50.,0.))
+    p = (0.01, 0.0070893847415232263, 0.0056488099243383414, -0.01, 109.61234595301809)
+    center_line = TG.spiral3_calc(p, s=100.,q=(3.,25.,0.))
+    # p = (0.,0.,0.,0.,90.) # (p0~p3, sg)
+    # center_line = TG.spiral3_calc(p, q=(5.,50.,0.))
     # np.savetxt('scenario_1/road_center_line.txt', center_line, delimiter='\t')
     # print(center_line)
 
     # road
     road = Road(center_line)
 
+    ax1.plot(center_line[:,1], center_line[:,2], color='maroon', linestyle='--', linewidth=1.)
+
+    ax1.plot(road.lateral_lines[:,0], road.lateral_lines[:,1],color='green', linewidth=1.)
+    ax1.plot(road.lateral_lines[:,-2], road.lateral_lines[:,-1],color='green', linewidth=1.)
     for i in range(road.grid_num_lateral+1):
         if (i % road.grid_num_per_lane) == 0:
             ax1.plot(road.longitudinal_lines[:,2*i], road.longitudinal_lines[:,2*i+1], color='green', linewidth=1.)
-        else:
-            ax1.plot(road.longitudinal_lines[:,2*i], road.longitudinal_lines[:,2*i+1], color='black', linewidth=0.3)
-    for i in range(road.grid_num_longitudinal+1):
-        ax1.plot(road.lateral_lines[:,2*i], road.lateral_lines[:,2*i+1],color='black', linewidth=0.3)
+        # else:
+        #     ax1.plot(road.longitudinal_lines[:,2*i], road.longitudinal_lines[:,2*i+1], color='black', linewidth=0.3)
+    # for i in range(road.grid_num_longitudinal+1):
+    #     ax1.plot(road.lateral_lines[:,2*i], road.lateral_lines[:,2*i+1],color='black', linewidth=0.3)
 
     # vehicle
     cfg0 = road.sl2xy(5.,0.)
+    cfg5 = road.sl2xy(90.,0.)
     veh = Vehicle(trajectory=np.array([[-1.,-1.,cfg0[0], cfg0[1], cfg0[2], cfg0[3], 0.,5.,0.]]))
+    veh5 = Vehicle(trajectory=np.array([[-1.,-1.,cfg5[0], cfg5[1], cfg5[2], cfg5[3], 0.,5.,0.]]))
+
+    # ax1.plot(cfg0[0], cfg0[1], 'ko')
+    # ax1.text(cfg0[0], cfg0[1]+0.4, 'Start')
+    # # ax1.plot(cfg5[0], cfg5[1], 'ko')
+    # ax1.text(cfg5[0], cfg5[1]+0.4, 'Goal')
+
+    codes6 = [Path.MOVETO,
+        Path.LINETO,
+        Path.LINETO,
+        Path.LINETO,
+        Path.LINETO,
+        Path.LINETO,
+        Path.CLOSEPOLY,
+        ]
+    # verts0 = [tuple(veh.vertex[i]) for i in range(6)]
+    # verts0.append(verts0[0])
+    # ax1.add_patch(patches.PathPatch(Path(verts0, codes6), facecolor='green', alpha=0.5))
+
+    # verts5 = [tuple(veh5.vertex[i]) for i in range(6)]
+    # verts5.append(verts5[0])
+    # ax1.add_patch(patches.PathPatch(Path(verts5, codes6), facecolor='red', alpha=0.5))
 
 
     # workspace
@@ -379,14 +408,28 @@ def senarios_1():
     # np.savetxt('base_bitmap.txt', base, fmt='%i', delimiter=' ')
 
     # static obstacles
-    cfg1 = road.sl2xy(25., 0.)
-    cfg2 = road.sl2xy(25., -road.lane_width)
-    cfg3 = road.sl2xy(55.,0.)
-    cfg4 = road.sl2xy(55., road.lane_width)
+    cfg1 = road.sl2xy(30., 0.)
+    cfg2 = road.sl2xy(30., -road.lane_width)
+    cfg3 = road.sl2xy(65.,0.)
+    cfg4 = road.sl2xy(65., road.lane_width)
     obst1 = Vehicle(trajectory=np.array([[-1.,-1.,cfg1[0], cfg1[1], cfg1[2], cfg1[3], 0.,0.,0.]]))
     obst2 = Vehicle(trajectory=np.array([[-1.,-1.,cfg2[0], cfg2[1], cfg2[2], cfg2[3], 0.,0.,0.]]))
     obst3 = Vehicle(trajectory=np.array([[-1.,-1.,cfg3[0], cfg3[1], cfg3[2], cfg3[3], 0.,0.,0.]]))
     obst4 = Vehicle(trajectory=np.array([[-1.,-1.,cfg4[0], cfg4[1], cfg4[2], cfg4[3], 0.,0.,0.]]))
+
+    verts1 = [tuple(obst1.vertex[i]) for i in range(6)]
+    verts1.append(verts1[0])
+    ax1.add_patch(patches.PathPatch(Path(verts1, codes6), facecolor='cyan'))
+    verts2 = [tuple(obst2.vertex[i]) for i in range(6)]
+    verts2.append(verts2[0])
+    ax1.add_patch(patches.PathPatch(Path(verts2, codes6), facecolor='cyan'))
+    verts3 = [tuple(obst3.vertex[i]) for i in range(6)]
+    verts3.append(verts3[0])
+    ax1.add_patch(patches.PathPatch(Path(verts3, codes6), facecolor='cyan'))
+    verts4 = [tuple(obst4.vertex[i]) for i in range(6)]
+    verts4.append(verts4[0])
+    ax1.add_patch(patches.PathPatch(Path(verts4, codes6), facecolor='cyan'))
+
     base += ws.grids_occupied_by_polygon(obst1.vertex)
     base += ws.grids_occupied_by_polygon(obst2.vertex)
     base += ws.grids_occupied_by_polygon(obst3.vertex)
@@ -404,24 +447,24 @@ def senarios_1():
     cost_map += collision_map
     cost_map = np.where(cost_map>1., np.inf, cost_map)
     cost_map = np.where(cost_map<1.e-8, 0., cost_map)
-    costmap_save = np.where( cost_map >1., -1., cost_map)
+    # costmap_save = np.where( cost_map >1., -1., cost_map)
     # np.savetxt('scenario_1/cost_map.txt', costmap_save, delimiter='\t')
 
     # plot
-    costmap_plot = np.where( cost_map >1., 1., cost_map)
-    ax1.imshow(costmap_plot, cmap=plt.cm.Reds, origin="lower",extent=(0.,ws.resolution*ws.row,0.,ws.resolution*ws.column))
-    ax1.plot(center_line[:,1], center_line[:,2], color='maroon', linestyle='--', linewidth=1.)
+    # costmap_plot = np.where( cost_map >1., 1., cost_map)
+    # ax1.imshow(costmap_plot, cmap=plt.cm.Reds, origin="lower",extent=(0.,ws.resolution*ws.row,0.,ws.resolution*ws.column))
+    
     
     # heuristic map
-    goal_state = State(road=road, r_s=80., r_l=0., v=8.33)
+    goal_state = State(road=road, r_s=90., r_l=0., v=10.)
     # ax1.scatter(goal_state.x, goal_state.y, c='r')
     ax1.plot(goal_state.x, goal_state.y, 'rs')
 
     heuristic_map = heuristic_map_constructor(goal_state, cost_map)
-    hm_save = np.where(heuristic_map > np.finfo('d').max, -1., heuristic_map)
+    # hm_save = np.where(heuristic_map > np.finfo('d').max, -1., heuristic_map)
     # np.savetxt('scenario_1/heuristic_map.txt', hm_save, delimiter='\t')
 
-    start_state = State(time=0., length=0., road=road, r_s=5., r_l=0., v=8.33,cost=0., heuristic_map=heuristic_map)
+    start_state = State(time=0., length=0., road=road, r_s=5., r_l=0., v=10.,cost=0., heuristic_map=heuristic_map)
     # ax1.scatter(start_state.x, start_state.y, c='r')
     ax1.plot(start_state.x, start_state.y, 'rs')
     # ax1.imshow(heuristic_map, cmap=plt.cm.Reds, origin="lower",extent=(0.,ws.resolution*ws.row,0.,ws.resolution*ws.column))
@@ -437,26 +480,47 @@ def senarios_1():
     print(res)
     print(len(state_dict))
     print(len(traj_dict))
-    print(goal_state.time, goal_state.length, goal_state.cost, start_state.heuristic, goal_state.heuristic)
-    # True
+    # print(goal_state.time, goal_state.length, goal_state.cost, start_state.heuristic, goal_state.heuristic)
+    # # True
     # 168
     # 175
     # 8.78814826688 76.409797813 2701.06684421 1559.33663366 0.0
 
-    for _ , traj in traj_dict.items():
+    # for _ , traj in traj_dict.items():
         # ax1.plot(traj[:,2], traj[:,3], traj[:,0], color='navy', linewidth=0.3)
-        ax1.plot(traj[:,2], traj[:,3], color='navy', linewidth=0.5)
-    for _, state in state_dict.items():
-        if state != start_state and state != goal_state:
-            ax1.plot(state.x, state.y, 'go')
+        # ax1.plot(traj[:,2], traj[:,3], color='navy', linewidth=1.)
+    # for _, state in state_dict.items():
+    #     if state != start_state and state != goal_state:
+    #         ax1.plot(state.x, state.y, 'go')
             # ax1.text(state.x, state.y,'{0:.2f}'.format(state.cost))
+    state = goal_state
+    rows = 0 
+    while state.parent is not None:
+        traj = traj_dict[(state.parent, state)]
+        ax1.plot(traj[:,2], traj[:,3], color='magenta', linewidth=3.)
+        rows += traj.shape[0]
+        ax1.plot(state.x, state.y, 'go')
+        ax1.plot(state.parent.x, state.parent.y, 'go')
+        state = state.parent
+
+    final_traj=np.zeros((rows,9))
     state = goal_state
     while state.parent is not None:
         traj = traj_dict[(state.parent, state)]
+        final_traj[(rows-traj.shape[0]):rows,:] = traj
+        rows -= traj.shape[0]
         state = state.parent
-        # ax1.plot(traj[:,2], traj[:,3], traj[:,0], color='teal', linewidth=1.)
-        ax1.plot(traj[:,2], traj[:,3], color='teal', linewidth=1.)
-        # ax2.plot(traj[:,0], traj[:,7], color='black', linewidth=0.5)
+
+    # with open('scenario_1/final_traj.pickle','wb') as f3:  
+    #     pickle.dump(final_traj, f3)
+
+    for i in range(31):
+        state1 = trajectory_interp(final_traj, i*goal_state.time/30)
+        if state1 is not None:
+            obst_d1 = Vehicle(trajectory=np.array([[-1.,-1.,state1[2], state1[3], state1[4], 0., 0.,0.,0.]]))
+            verts_d1 = [tuple(obst_d1.vertex[i]) for i in range(6)]
+            verts_d1.append(verts_d1[0])
+            ax1.add_patch(patches.PathPatch(Path(verts_d1, codes6), facecolor='blue', alpha=0.1+0.03*i))
 
 
     # close database connection
