@@ -14,6 +14,352 @@ import datetime
 import pickle
 
 
+def senarios_5():
+    conn = sqlite3.connect('InitialGuessTable.db')
+    cursor = conn.cursor()
+
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+
+    p = (0.01, 0.0070893847415232263, 0.0056488099243383414, -0.01, 109.61234595301809)
+    center_line = TG.spiral3_calc(p, s=100.,q=(3.,25.,0.))
+    road = Road(center_line, ref_grid_width=0.5, ref_grid_length=1.)
+
+    # ax.plot(center_line[:,1], center_line[:,2], color='red', linewidth=1.)
+    ax.plot(road.lateral_lines[:,0], road.lateral_lines[:,1],color='green', linewidth=1.)
+    ax.plot(road.lateral_lines[:,-2], road.lateral_lines[:,-1],color='green', linewidth=1.)
+    for i in range(road.grid_num_lateral+1):
+        if (i % road.grid_num_per_lane) == 0:
+            ax.plot(road.longitudinal_lines[:,2*i], road.longitudinal_lines[:,2*i+1], color='green', linewidth=1.)
+
+    #
+    ws = Workspace(road=road, lane_costs=[0.2,0.1,0.4])
+    cost_map_base = ws.lane_map
+    # ax.imshow(ws.lane_map, cmap=plt.cm.Blues, origin='lower', extent=(0,100,0,100))
+
+    c_s1 = road.sl2xy(70.,road.lane_width)
+    s1 = State(time=0.,length=0.,road=road,x=c_s1[0],y=c_s1[1],theta=c_s1[2]+np.pi,k=-c_s1[3], v=15.)
+    c_g1 = road.sl2xy(5.,road.lane_width)
+    g1 = State(road=road,x=c_g1[0],y=c_g1[1],theta=c_g1[2]+np.pi,k=-c_g1[3],v=15.)
+    traj1 = trajectory_forward(s1,g1,cursor)
+    # if traj1 is not None:
+    #     ax.plot(traj1[:,2], traj1[:,3], color='navy', linewidth=2.)
+
+    c_s2 = road.sl2xy(85.,0.)
+    s2 = State(time=0.,length=0.,x=c_s2[0],y=c_s2[1],theta=c_s2[2]+np.pi,k=-c_s2[3], v=6.)
+    c_g2 = road.sl2xy(5.,0.)
+    g2 = State(x=c_g2[0],y=c_g2[1],theta=c_g2[2]+np.pi,k=-c_g2[3],v=6.)
+    traj2 = trajectory_forward(s2,g2,cursor)
+    # if traj2 is not None:
+    #     ax.plot(traj2[:,2], traj2[:,3], color='navy', linewidth=2.)
+
+    s3 = State(time=0.,length=0.,road=road,r_s=5.,r_l=-road.lane_width, v=8.)
+    g3 = State(road=road,r_s=95.,r_l=-road.lane_width,v=8.)
+    traj3 = trajectory_forward(s3,g3,cursor)
+    # print(traj1[-1,:])
+    # ax.plot(traj3[:,2], traj3[:,3], color='navy', linewidth=2.)
+
+    cfg0 = road.sl2xy(5.,0.)
+    veh0 = Vehicle(trajectory=np.array([[-1.,-1.,cfg0[0], cfg0[1], cfg0[2], cfg0[3], 0.,0.,0.]]))
+    cfg1 = road.sl2xy(90.,0.)
+    veh1 = Vehicle(trajectory=np.array([[-1.,-1.,cfg1[0], cfg1[1], cfg1[2], cfg1[3], 0.,0.,0.]]))
+
+    ax.plot(cfg0[0], cfg0[1], 'ko')
+    ax.text(cfg0[0], cfg0[1]+0.4, 'Start')
+    ax.plot(cfg1[0], cfg1[1], 'ko')
+    ax.text(cfg1[0], cfg1[1]+0.4, 'Goal')
+
+    #
+    codes6 = [Path.MOVETO,
+        Path.LINETO,
+        Path.LINETO,
+        Path.LINETO,
+        Path.LINETO,
+        Path.LINETO,
+        Path.CLOSEPOLY,
+        ]
+
+
+    # verts0 = [tuple(veh0.vertex[i]) for i in range(6)]
+    # verts0.append(verts0[0])
+    # ax.add_patch(patches.PathPatch(Path(verts0, codes6), facecolor='green', alpha=0.5))
+
+    # verts1 = [tuple(veh1.vertex[i]) for i in range(6)]
+    # verts1.append(verts1[0])
+    # ax.add_patch(patches.PathPatch(Path(verts1, codes6), facecolor='red', alpha=0.5))
+
+    for i in range(20):
+        state1 = trajectory_interp(traj1, i*0.2)
+        state2 = trajectory_interp(traj2, i*0.2)
+        state3 = trajectory_interp(traj3, i*0.2)
+        if state1 is not None:
+            obst_d1 = Vehicle(trajectory=np.array([[-1.,-1.,state1[2], state1[3], state1[4], 0., 0.,0.,0.]]))
+            verts_d1 = [tuple(obst_d1.vertex[i]) for i in range(6)]
+            verts_d1.append(verts_d1[0])
+            ax.add_patch(patches.PathPatch(Path(verts_d1, codes6), facecolor='cyan', alpha=(i+1)/20.))
+        if state2 is not None:
+            obst_d2 = Vehicle(trajectory=np.array([[-1.,-1.,state2[2], state2[3], state2[4], 0., 0.,0.,0.]]))
+            verts_d2 = [tuple(obst_d2.vertex[i]) for i in range(6)]
+            verts_d2.append(verts_d2[0])
+            ax.add_patch(patches.PathPatch(Path(verts_d2, codes6), facecolor='cyan', alpha=(i+1)/20.))
+        if state3 is not None:
+            obst_d3 = Vehicle(trajectory=np.array([[-1.,-1.,state3[2], state3[3], state3[4], 0., 0.,0.,0.]]))
+            verts_d3 = [tuple(obst_d3.vertex[i]) for i in range(6)]
+            verts_d3.append(verts_d3[0])
+            ax.add_patch(patches.PathPatch(Path(verts_d3, codes6), facecolor='cyan', alpha=(i+1)/20.))
+
+    #
+    cost_maps = np.zeros((150,500,500))
+    grids_s = np.zeros((500,500))
+    lane_grids = sum(ws.lane_grids)
+    lane_grids = np.where(lane_grids>1.,1., lane_grids)
+    off_road_map = 1. - lane_grids
+    grids_s += off_road_map
+
+    for i in range(150):
+        obst_map = np.zeros((500,500))
+        obst_map += grids_s
+        state1 = trajectory_interp(traj1, i/10.)
+        state2 = trajectory_interp(traj2, i/10.)
+        state3 = trajectory_interp(traj3, i/10.)
+        if state1 is not None:
+            obst_d1 = Vehicle(trajectory=np.array([[-1.,-1.,state1[2], state1[3], state1[4], 0., 0.,0.,0.]]))
+            grids_d1 = ws.grids_occupied_by_polygon(obst_d1.vertex)
+            obst_map += grids_d1
+        if state2 is not None:
+            obst_d2 = Vehicle(trajectory=np.array([[-1.,-1.,state2[2], state2[3], state2[4], 0., 0.,0.,0.]]))
+            grids_d2 = ws.grids_occupied_by_polygon(obst_d2.vertex)
+            obst_map += grids_d2
+        if state3 is not None:
+            obst_d3 = Vehicle(trajectory=np.array([[-1.,-1.,state3[2], state3[3], state3[4], 0., 0.,0.,0.]]))
+            grids_d3 = ws.grids_occupied_by_polygon(obst_d3.vertex)
+            obst_map += grids_d3
+
+        collision_map = cv2.filter2D(obst_map, -1, ws.collision_filter)
+        collision_map = np.where(collision_map>1.e-6, 1., 0.)
+        cost_map = cv2.filter2D(collision_map, -1, ws.cost_filter)
+        cost_map += collision_map
+        cost_map = np.where(cost_map>1., np.inf, cost_map)
+        cost_map = np.where(cost_map<1.e-8, 0., cost_map)
+        cost_map += cost_map_base
+        cost_maps[i,:,:] = cost_map
+    with open('scenario_5/cost_maps.pickle','wb') as f1:  
+        pickle.dump(cost_maps, f1)
+
+
+
+
+    # plt.xlabel('$x (m)$', fontsize=20)
+    # plt.ylabel('$y (m)$', fontsize=20)
+    plt.axis('equal')
+    # plt.axis('off')
+    # plt.savefig('scenario_4/obstacles2.png', dpi=600)
+    plt.show()
+
+    cursor.close()
+    conn.close()
+
+
+def test_cost_maps5():
+    conn = sqlite3.connect('InitialGuessTable.db')
+    cursor = conn.cursor()
+
+    p = (0.01, 0.0070893847415232263, 0.0056488099243383414, -0.01, 109.61234595301809)
+    center_line = TG.spiral3_calc(p, s=100.,q=(3.,25.,0.))
+    road = Road(center_line, ref_grid_width=0.5, ref_grid_length=1.)
+
+    cost_maps = np.zeros((150,500,500))
+    with open('scenario_5/cost_maps.pickle', 'rb') as f1:
+        cost_maps = pickle.load(f1)
+
+    # heuristic_maps = np.zeros((150,500,500))
+    # with open('scenario_5/heuristic_maps.pickle', 'rb') as f2:
+    #     heuristic_maps = pickle.load(f2)
+
+    heuristic_maps = np.zeros((150,500,500))
+    goal = tuple(road.sl2xy(90.,0.))
+    for i in range(150):
+        hm = heuristic_map_constructor(goal, cost_maps[i,:,:])
+        heuristic_maps[i,:,:] = hm
+    with open('scenario_5/heuristic_maps.pickle','wb') as f2:  
+        pickle.dump(heuristic_maps, f2)
+
+    fig = plt.figure()
+    ax1 = fig.add_subplot(331)
+    ax2 = fig.add_subplot(332)
+    ax3 = fig.add_subplot(333)
+    ax4 = fig.add_subplot(334)
+    ax5 = fig.add_subplot(335)
+    ax6 = fig.add_subplot(336)
+    ax7 = fig.add_subplot(337)
+    ax8 = fig.add_subplot(338)
+    ax9 = fig.add_subplot(339)
+
+    ax = [ax1,ax2,ax3,ax4,ax5,ax6,ax7,ax8,ax9]
+
+    for i in range(9):
+        # cost_map = cost_maps[int(i*10),:,:]
+        # cost_map = np.where(cost_map>np.finfo('d').max, 1., cost_map)
+        # ax[i].imshow(cost_map, cmap=plt.cm.Blues, origin='lower', extent=(0,100,0,100))
+        heuristic_map = heuristic_maps[int(i*10),:,:]
+        ax[i].imshow(heuristic_map, cmap=plt.cm.Blues, origin='lower', extent=(0,100,0,100))
+    plt.show()
+    # print(heuristic_maps[0,:,:])
+    # hm = heuristic_map_constructor(goal, cost_maps[0,:,:])
+    # for i in range(500):
+    #     for j in range(500):
+    #         if not np.isinf(hm[i,j]):
+    #             print(hm[i,j])
+    # plt.imshow(hm, cmap=plt.cm.Blues, origin='lower', extent=(0,100,0,100))
+    # plt.show()
+
+    cursor.close()
+    conn.close()
+
+
+def scenario_5_sim():
+    conn = sqlite3.connect('InitialGuessTable.db')
+    cursor = conn.cursor()
+
+    cost_maps = np.zeros((150,500,500))
+    with open('scenario_5/cost_maps.pickle', 'rb') as f1:
+        cost_maps = pickle.load(f1)
+
+    heuristic_maps = np.zeros((150,500,500))
+    with open('scenario_5/heuristic_maps.pickle', 'rb') as f2:
+        heuristic_maps = pickle.load(f2)
+
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+
+    p = (0.01, 0.0070893847415232263, 0.0056488099243383414, -0.01, 109.61234595301809)
+    center_line = TG.spiral3_calc(p, s=100.,q=(3.,25.,0.))
+    road = Road(center_line, ref_grid_width=0.5, ref_grid_length=1.)
+
+    # ax.plot(center_line[:,1], center_line[:,2], color='red', linewidth=1.)
+    ax.plot(road.lateral_lines[:,0], road.lateral_lines[:,1],color='green', linewidth=1.)
+    ax.plot(road.lateral_lines[:,-2], road.lateral_lines[:,-1],color='green', linewidth=1.)
+    for i in range(road.grid_num_lateral+1):
+        if (i % road.grid_num_per_lane) == 0:
+            ax.plot(road.longitudinal_lines[:,2*i], road.longitudinal_lines[:,2*i+1], color='green', linewidth=1.)
+
+    goal = State(road=road, r_s=90., r_l=0., v=12.,static=False)
+    start = State(time=0., length=0., road=road, r_s=5., r_l=0., v=10.,cost=0.,heuristic_map=heuristic_maps, static=False)
+    veh = Vehicle(trajectory=np.array([[-1.,-1.,start.x, start.y, start.theta, start.k, 0.,0.,0.]]))
+
+
+    # # weights: weights for (k, dk, v, a, a_c, l, env, j, t, s)
+    weights = np.array([5., 10., -0.1, 10., 0.1, 1., 50., 5, 30., -2.])
+
+    starttime = datetime.datetime.now()
+    res, state_dict, traj_dict = Astar(start, goal, road, cost_maps, veh, heuristic_maps, cursor, static=False, weights=weights)
+    endtime = datetime.datetime.now()
+
+    print((endtime - starttime).total_seconds()*1000) # 12.1s
+    print(res)
+    print(len(state_dict)) #150
+    print(len(traj_dict))
+
+    # for _ , traj in traj_dict.items():
+    #     ax.plot(traj[:,2], traj[:,3], color='blue', linewidth=1.)
+    # for _, state in state_dict.items():
+    #     if state != start and state != goal:
+    #         ax.plot(state.x, state.y, 'go')
+            # ax.text(state.x, state.y,'{0:.2f}'.format(state.cost))
+    state = goal
+    rows = 0
+    while state.parent is not None:
+        traj = traj_dict[(state.parent, state)]
+        ax.plot(traj[:,2], traj[:,3], color='magenta', linewidth=3.)
+        rows += traj.shape[0]
+        ax.plot(state.x, state.y, 'go')
+        ax.plot(state.parent.x, state.parent.y, 'go')
+        state = state.parent
+        # ax.plot(traj[:,2], traj[:,3], traj[:,0], color='teal', linewidth=1.)
+        
+        # ax.plot(traj[:,0], traj[:,7], color='black', linewidth=0.5)
+    # print(rows)
+    final_traj=np.zeros((rows,9))
+    state = goal
+    # row = 0
+    while state.parent is not None:
+        traj = traj_dict[(state.parent, state)]
+        final_traj[(rows-traj.shape[0]):rows,:] = traj
+        rows -= traj.shape[0]
+        # row += traj.shape[0]
+        state = state.parent
+    # with open('scenario_5/final_traj.pickle','wb') as f3:  
+    #     pickle.dump(final_traj, f3)
+
+    #
+    #################
+    c_s1 = road.sl2xy(70.,road.lane_width)
+    s1 = State(time=0.,length=0.,road=road,x=c_s1[0],y=c_s1[1],theta=c_s1[2]+np.pi,k=-c_s1[3], v=15.)
+    c_g1 = road.sl2xy(5.,road.lane_width)
+    g1 = State(road=road,x=c_g1[0],y=c_g1[1],theta=c_g1[2]+np.pi,k=-c_g1[3],v=15.)
+    traj1 = trajectory_forward(s1,g1,cursor)
+
+    c_s2 = road.sl2xy(85.,0.)
+    s2 = State(time=0.,length=0.,x=c_s2[0],y=c_s2[1],theta=c_s2[2]+np.pi,k=-c_s2[3], v=6.)
+    c_g2 = road.sl2xy(5.,0.)
+    g2 = State(x=c_g2[0],y=c_g2[1],theta=c_g2[2]+np.pi,k=-c_g2[3],v=6.)
+    traj2 = trajectory_forward(s2,g2,cursor)
+
+    s3 = State(time=0.,length=0.,road=road,r_s=5.,r_l=-road.lane_width, v=8.)
+    g3 = State(road=road,r_s=95.,r_l=-road.lane_width,v=8.)
+    traj3 = trajectory_forward(s3,g3,cursor)
+
+    codes6 = [Path.MOVETO,
+        Path.LINETO,
+        Path.LINETO,
+        Path.LINETO,
+        Path.LINETO,
+        Path.LINETO,
+        Path.CLOSEPOLY,
+        ]
+
+    # verts_s = [tuple(obst_s.vertex[i]) for i in range(6)]
+    # verts_s.append(verts_s[0])
+    # ax.add_patch(patches.PathPatch(Path(verts_s, codes6), facecolor='cyan'))
+
+    for i in range(31):
+        state1 = trajectory_interp(traj1, i*goal.time/30)
+        state2 = trajectory_interp(traj2, i*goal.time/30)
+        state3 = trajectory_interp(final_traj, i*goal.time/30)
+        state4 = trajectory_interp(traj3, i*goal.time/30)
+        if state1 is not None:
+            obst_d1 = Vehicle(trajectory=np.array([[-1.,-1.,state1[2], state1[3], state1[4], 0., 0.,0.,0.]]))
+            verts_d1 = [tuple(obst_d1.vertex[i]) for i in range(6)]
+            verts_d1.append(verts_d1[0])
+            ax.add_patch(patches.PathPatch(Path(verts_d1, codes6), facecolor='cyan', alpha=0.1+0.03*i))
+        if state2 is not None:
+            obst_d2 = Vehicle(trajectory=np.array([[-1.,-1.,state2[2], state2[3], state2[4], 0., 0.,0.,0.]]))
+            verts_d2 = [tuple(obst_d2.vertex[i]) for i in range(6)]
+            verts_d2.append(verts_d2[0])
+            ax.add_patch(patches.PathPatch(Path(verts_d2, codes6), facecolor='cyan', alpha=0.1+0.03*i))
+        if state4 is not None:
+            obst_d4 = Vehicle(trajectory=np.array([[-1.,-1.,state4[2], state4[3], state4[4], 0., 0.,0.,0.]]))
+            verts_d4 = [tuple(obst_d4.vertex[i]) for i in range(6)]
+            verts_d4.append(verts_d4[0])
+            ax.add_patch(patches.PathPatch(Path(verts_d4, codes6), facecolor='cyan', alpha=0.1+0.03*i))
+        if state3 is not None:
+            obst_d3 = Vehicle(trajectory=np.array([[-1.,-1.,state3[2], state3[3], state3[4], 0., 0.,0.,0.]]))
+            verts_d3 = [tuple(obst_d3.vertex[i]) for i in range(6)]
+            verts_d3.append(verts_d3[0])
+            ax.add_patch(patches.PathPatch(Path(verts_d3, codes6), facecolor='blue', alpha=0.1+0.03*i))
+
+
+
+
+    plt.axis('equal')
+    # plt.axis('off')
+    # plt.savefig('scenario_4/obstacles2.png', dpi=600)
+    plt.show()
+
+    cursor.close()
+    conn.close()
+
+
 def senarios_4():
     conn = sqlite3.connect('InitialGuessTable.db')
     cursor = conn.cursor()
@@ -228,9 +574,9 @@ def scenario_4_sim():
     res, state_dict, traj_dict = Astar(start, goal, road, cost_maps, veh, heuristic_maps, cursor, static=False, weights=weights)
     endtime = datetime.datetime.now()
 
-    print((endtime - starttime).seconds)
+    print((endtime - starttime).total_seconds()*1000) # 4.8s
     print(res)
-    print(len(state_dict))
+    print(len(state_dict)) #96
     print(len(traj_dict))
 
     # for _ , traj in traj_dict.items():
@@ -258,7 +604,6 @@ def scenario_4_sim():
     # row = 0
     while state.parent is not None:
         traj = traj_dict[(state.parent, state)]
-        print(traj.shape[0])
         final_traj[(rows-traj.shape[0]):rows,:] = traj
         rows -= traj.shape[0]
         # row += traj.shape[0]
@@ -476,9 +821,9 @@ def senarios_1():
     res, state_dict, traj_dict = Astar(start_state, goal_state, road, cost_map, veh, heuristic_map, cursor, weights=weights)
     endtime = datetime.datetime.now()
 
-    print((endtime - starttime).seconds)
+    print((endtime - starttime).total_seconds()*1000) # 2.6s
     print(res)
-    print(len(state_dict))
+    print(len(state_dict)) #66
     print(len(traj_dict))
     # print(goal_state.time, goal_state.length, goal_state.cost, start_state.heuristic, goal_state.heuristic)
     # # True
@@ -820,7 +1165,19 @@ if __name__ == '__main__':
     # env_plot()
     # costmap_plot()
     # extend_plot()
-    senarios_1()
+    # senarios_1()
     # senarios_4()
     # test_cost_maps()
     # scenario_4_sim()
+    # senarios_5()
+    # test_cost_maps5()
+    # scenario_5_sim()
+
+    with open('scenario_5/final_traj.pickle', 'rb') as f1:
+        final_traj = pickle.load(f1)
+
+    plt.ylim([0,20])
+    plt.plot(final_traj[:,0], final_traj[:,7])
+    plt.xlabel('$time (s)$', fontsize=20)
+    plt.ylabel('$velocity (m/s)$', fontsize=20)
+    plt.show()

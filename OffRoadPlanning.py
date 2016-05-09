@@ -1,4 +1,5 @@
 import Environment as Env
+from OnRoadPlanning import trajectory_interp
 import TrajectoryGeneration as TG
 from queue import PriorityQueue
 import numpy as np 
@@ -8,6 +9,7 @@ import matplotlib.pyplot as plt
 from matplotlib.path import Path
 import matplotlib.patches as patches
 import pickle
+import datetime
 import cv2
 
 # configuration - Q(x, y, theta)
@@ -374,7 +376,7 @@ def eval_trajectory(traj, costmap, vehicle=Env.Vehicle(), resolution=0.2, time_r
     cost_sum = cost_matrix.sum()
     if np.isinf(cost_sum):
         return np.inf
-    return cost_sum*(traj[1,1]-traj[0,1]) + weights[0]*(traj[-1,1]-traj[0,1]) #+ weights[1]*(traj[-1,0] - traj[0,0]) #+ weights[2]*np.abs(traj[-1,7])
+    return cost_sum*(traj[1,1]-traj[0,1]) + weights[0]*(traj[-1,1]-traj[0,1]) - 0.6*np.abs(traj[-1,7]) #+ weights[1]*(traj[-1,0] - traj[0,0]) #+ weights[2]*np.abs(traj[-1,7])
 
 
 class State:
@@ -792,7 +794,7 @@ def navigation():
     path3 = Path(obst3_t, codes4)
     path4 = Path(obst4_t, codes4)
 
-    patch_b = patches.PathPatch(path_b, facecolor='green')
+    patch_b = patches.PathPatch(path_b, facecolor='green', alpha=0.3)
     patch1 = patches.PathPatch(path1, facecolor='cyan')
     patch2 = patches.PathPatch(path2, facecolor='cyan')
     patch3 = patches.PathPatch(path3, facecolor='cyan')
@@ -810,43 +812,67 @@ def navigation():
     veh_verts.append(veh_verts[0])
     veh_path = Path(veh_verts, codes6)
     veh_patch = patches.PathPatch(veh_path, facecolor='red')
-    ax.add_patch(veh_patch)
+    # ax.add_patch(veh_patch)
 
-    # goal = State(state=(80.,90.,-np.pi/3.,0.))
-    # start = State(state=(10.,10.,0.,0.), cost=0., heuristic_map=heuristic_map)
+    goal = State(state=(80.,90.,-np.pi/3.,0.))
+    start = State(state=(10.,10.,0.,0.), cost=0., heuristic_map=heuristic_map)
 
-    # veh1 = Env.Vehicle(trajectory=np.array([[-1.,-1.,start.state[0], start.state[1], start.state[2], 0., 0.,0.,0.]]))
-    # veh2 = Env.Vehicle(trajectory=np.array([[-1.,-1.,goal.state[0], goal.state[1], goal.state[2], 0., 0.,0.,0.]]))
-    # veh1_verts = [tuple(veh1.vertex[i]) for i in range(6)]
-    # veh2_verts = [tuple(veh2.vertex[i]) for i in range(6)]
-    # veh1_verts.append(veh1_verts[0])
-    # veh2_verts.append(veh2_verts[0])
-    # veh1_path = Path(veh1_verts, codes6)
-    # veh2_path = Path(veh2_verts, codes6)
+    veh1 = Env.Vehicle(trajectory=np.array([[-1.,-1.,start.state[0], start.state[1], start.state[2], 0., 0.,0.,0.]]))
+    veh2 = Env.Vehicle(trajectory=np.array([[-1.,-1.,goal.state[0], goal.state[1], goal.state[2], 0., 0.,0.,0.]]))
+    veh1_verts = [tuple(veh1.vertex[i]) for i in range(6)]
+    veh2_verts = [tuple(veh2.vertex[i]) for i in range(6)]
+    veh1_verts.append(veh1_verts[0])
+    veh2_verts.append(veh2_verts[0])
+    veh1_path = Path(veh1_verts, codes6)
+    veh2_path = Path(veh2_verts, codes6)
     # veh1_patch = patches.PathPatch(veh1_path, facecolor='red')
     # veh2_patch = patches.PathPatch(veh2_path, facecolor='purple')
     # ax.add_patch(veh1_patch)
     # ax.add_patch(veh2_patch)
 
-    # res, state_dict, traj_dict = Astar(start, goal, cost_map=cost_map, heuristic_map=heuristic_map, vehicle=None, cursor=cursor, motion_primitives=motion_primitives)
-    # print("Size of Graph: {0}".format(len(traj_dict)))
+    starttime = datetime.datetime.now()
+    res, state_dict, traj_dict = Astar(start, goal, cost_map=cost_map, heuristic_map=heuristic_map, vehicle=None, cursor=cursor, motion_primitives=motion_primitives)
+    endtime = datetime.datetime.now()
+    print((endtime - starttime).total_seconds()*1000) # 3.4s
+    print("Size of Graph: {0}".format(len(traj_dict))) # 846
     # with open('scenario_3/state_dict.pickle','wb') as f1:  
     #     pickle.dump(state_dict, f1)
     # with open('scenario_3/traj_dict.pickle','wb') as f2:  
     #     pickle.dump(traj_dict, f2)
-    # if res:
-    #     print("Planning Successes.")
-    # else:
-    #     print("Planning Fails.")
+    if res:
+        print("Planning Successes.")
+    else:
+        print("Planning Fails.")
     # for (s1, s2), traj1 in traj_dict.items():
-    #     plt.plot(traj1[:,2], traj1[:,3], 'black')
-    # state = goal
-    # while state.parent is not None:
-    #     plt.plot(state.state[0], state.state[1], 'ro')
-    #     plt.plot(state.parent.state[0], state.parent.state[1], 'ro')
-    #     traj = traj_dict[(state.parent, state)]
-    #     plt.plot(traj[:,2], traj[:,3], color='navy', linewidth=2.)
-    #     state = state.parent
+    #     plt.plot(traj1[:,2], traj1[:,3], 'navy')
+    state = goal
+    rows = 0
+    while state.parent is not None:
+        ax.plot(state.state[0], state.state[1], 'ro')
+        ax.plot(state.parent.state[0], state.parent.state[1], 'ro')
+        traj = traj_dict[(state.parent, state)]
+        rows += traj.shape[0]
+        ax.plot(traj[:,2], traj[:,3], color='magenta', linewidth=2.)
+        state = state.parent
+    
+    final_traj=np.zeros((rows,9))
+    state = goal
+    while state.parent is not None:
+        traj = traj_dict[(state.parent, state)]
+        final_traj[(rows-traj.shape[0]):rows,:] = traj
+        rows -= traj.shape[0]
+        state = state.parent
+    # with open('scenario_3/final_traj.pickle','wb') as f3:  
+    #     pickle.dump(final_traj, f3)
+
+    for i in range(61):
+        state1 = trajectory_interp(final_traj, i*goal.time/60)
+        if state1 is not None:
+            obst_d1 = Env.Vehicle(trajectory=np.array([[-1.,-1.,state1[2], state1[3], state1[4], 0., 0.,0.,0.]]))
+            verts_d1 = [tuple(obst_d1.vertex[i]) for i in range(6)]
+            verts_d1.append(verts_d1[0])
+            ax.add_patch(patches.PathPatch(Path(verts_d1, codes6), facecolor='blue', alpha=0.1+0.015*i))
+
 
     plt.axis('equal')
     plt.show()
@@ -1161,13 +1187,13 @@ if __name__ == '__main__':
     # reverse_path_primitives(cursor)
     # test_load_path_primitives()
     # motion_primitives_construction()
-    test_load_motion_primitives()
+    # test_load_motion_primitives()
     # test_state()
     # test_astar()
     # environment_builder()
     # parking()
     # environment_builder2()
-    # navigation()
+    navigation()
     # configuration_space()
     # vehicle_circles()
 

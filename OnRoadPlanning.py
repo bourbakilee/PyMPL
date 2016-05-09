@@ -285,15 +285,20 @@ def trajectory_stay(start, goal, time = None):
 
 def trajectory_interp(traj, time):
     # traj - array([[t,s,x,y,theta,k,dk,v,a]])
-    if traj[0,0] <= time <= traj[-1,0]:
-        i = 1
-        while time > traj[i,0]:
-            i += 1
-        dt = traj[i,0] - traj[i-1,0]
-        dt1 = time - traj[i-1,0]
-        dt2 = traj[i,0] - time
-        if dt>0:
-            return (traj[i-1,:]*dt2 + traj[i,:]*dt1)/dt
+    if traj is not None and traj.shape[0] > 0:
+        if abs(time - traj[0,0]) < 1.e-3:
+            return traj[0,:]
+        if abs(time - traj[-1,0]) < 1.e-3:
+            return traj[-1,:]
+        if traj[0,0] < time < traj[-1,0]:
+            i = 1
+            while time > traj[i,0]:
+                i += 1
+            dt = traj[i,0] - traj[i-1,0]
+            dt1 = time - traj[i-1,0]
+            dt2 = traj[i,0] - time
+            if dt>0:
+                return (traj[i-1,:]*dt2 + traj[i,:]*dt1)/dt
     return None
 
 
@@ -307,7 +312,9 @@ def Astar(start, goal, road, cost_map, vehicle, heuristic_map, cursor, static=Tr
     pq.put(start)
     node_dict = {(start.r_i, start.r_j, int(round(start.v/2))):start, (goal.r_i, goal.r_j, int(round(goal.v/2))):goal}
     edge_dict = {}
-    while not goal.reach and not pq.empty():
+    times = 0
+    while times<100 and not goal.reach and not pq.empty():
+        times += 1
         current = pq.get()
         successors = current.successors(state_dict=node_dict, road=road, goal=goal, vehicle=vehicle, heuristic_map=heuristic_map)
         current.extend = True
